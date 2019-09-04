@@ -14,7 +14,7 @@
 
 #ifndef __NBLA_SOLVER_ADAM_HPP__
 #define __NBLA_SOLVER_ADAM_HPP__
-#include <nbla/solver/base_solver.hpp>
+#include <nbla/solver.hpp>
 #include <nbla/solver_registry.hpp>
 
 namespace nbla {
@@ -41,7 +41,7 @@ https://arxiv.org/abs/1412.6980
 
 \ingroup SolverImplGrp
 */
-template <typename T> class NBLA_API Adam : public BaseSolver<T> {
+template <typename T> class NBLA_API Adam : public Solver {
 public:
   Adam(const Context &ctx, float alpha, float beta1, float beta2, float eps);
   virtual ~Adam();
@@ -57,18 +57,15 @@ protected:
   float beta2_; ///< \f$\beta_2\f$
   float eps_;   ///< \f$\epsilon\f$
 
-  // State variables.
-  struct State {
-    VariablePtr mean;
-    VariablePtr var;
-    int t;
-  };
-  unordered_map<string, State> state_;
-
   // Functions.
   virtual void set_state_impl(const string &key, VariablePtr param);
   virtual void remove_state_impl(const string &key);
   virtual void update_impl(const string &key, VariablePtr param);
+  NBLA_DECL_WEIGHT_DECAY();
+  NBLA_DECL_CHECK_INF_GRAD();
+  NBLA_DECL_CHECK_NAN_GRAD();
+  NBLA_DECL_CHECK_INF_OR_NAN_GRAD();
+  NBLA_DECL_SCALE_GRAD();
 };
 }
 #endif

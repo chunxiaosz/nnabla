@@ -12,29 +12,105 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import division
+from libcpp cimport bool as cpp_bool
 from libcpp.algorithm cimport copy
-from libcpp.memory cimport make_shared
+from libcpp.memory cimport make_shared, shared_ptr
+from libc.stdint cimport intptr_t
 from cpython cimport PyObject, Py_INCREF
 
 from _nd_array cimport *
 from _variable cimport *
 from _array cimport *
+cimport _arithmetic_ops as AOP
+cimport _indexing as IDX
 
 # Numpy
 import numpy as np
 cimport numpy as np
 np.import_array()
 
+# Older cython doesn't expose const_pointer_cast in <memory>
+cdef extern from "<memory>" namespace "std" nogil:
+    cdef shared_ptr[T] const_pointer_cast[T, U](const shared_ptr[U] & )
+
+
+cdef c_get_numpy_array(CNdArray * arrp, vector[np.npy_intp] & shape,
+                       int type_num, CContext cctx):
+    cdef shared_ptr[const CArray] arr
+    with nogil:
+        arr = <shared_ptr[const CArray] > (arrp.get_sp( < dtypes > type_num, cctx))
+    cdef np.ndarray ndarray = np.PyArray_SimpleNewFromData(
+        shape.size(), shape.data(), type_num, < void*>(arr.get().const_pointer()))
+    ndarray.flags.writeable = False
+    pyarr = Array.create(arr)
+    ndarray.base = <PyObject * > pyarr
+    Py_INCREF(pyarr)
+    return ndarray
+
+
+cdef c_cast_numpy_array(CNdArray * arrp, vector[np.npy_intp] & shape,
+                        int type_num, CContext cctx, cpp_bool write_only):
+    cdef ArrayPtr arr
+    with nogil:
+        arr = <ArrayPtr > (arrp.cast_sp(< dtypes > type_num, cctx, write_only))
+    cdef np.ndarray ndarray = np.PyArray_SimpleNewFromData(
+        shape.size(), shape.data(), type_num, arr.get().pointer())
+    cdef shared_ptr[const CArray] carr = < shared_ptr[const CArray] > const_pointer_cast[ConstArray, CArray](arr)
+    pyarr = Array.create(carr)
+    ndarray.base = <PyObject * > pyarr
+    Py_INCREF(pyarr)
+    return ndarray
+
+
+cdef c_as_numpy_array(CNdArray * arrp, str mode):
+    cdef int type_num
+    cdef vector[np.npy_intp] shape
+    cdef Shape_t shape_base
+    from nnabla_ext.cpu import context
+    ctx = context()
+    cdef CContext cctx = <CContext > ctx
+
+    # Getting current data type
+    try:
+        type_num = <int > arrp.array().get().dtype()
+    except:
+        type_num = np.dtype(np.float32).num
+
+    # Create numpy shape array
+    shape.resize(arrp.ndim())
+    shape_base = arrp.shape()
+    copy(shape_base.begin(), shape_base.end(), shape.begin())
+
+    # Convert to numpy array with flags depending on the mode option.
+    if mode == 'r':
+        return c_get_numpy_array(arrp, shape, type_num, cctx)
+    else:
+        assert mode in ('w', 'rw'), 'Invalid mode is given: "%s"' % mode
+        return c_cast_numpy_array(arrp, shape, type_num, cctx, mode == 'w')
+
 
 cdef class NdArray:
     """
     :class:`nnabla._nd_array.NdArray` is a device-agnostic data container for multi-dimensional arrays (tensors).
-    :class:`nnabla._nd_array.NdArray` can also implictly handle data transfers across different devices (e.g. CPU to CUDA GPU, CUDA GPU to CPU).
+    :class:`nnabla._nd_array.NdArray` can also implicitly handle data transfers across different devices (e.g. CPU to CUDA GPU, CUDA GPU to CPU).
     See `Python API Tutorial <http://nnabla.readthedocs.io/en/latest/python/tutorial/python_api.html>`_ for more details.
 
+    :class:`~nnabla.NdArray` overrides some arithmetic operators
+    (``+``, ``-``, ``*``, ``/``, ``**``). Operands can be either a scalar number,
+    :class:`~nnabla.NdArray` or :class:`~nnabla.Variable`.
+    An arithmetic operation containing :class:`~nnabla.NdArray` returns
+    :class:`~nnabla.NdArray` which stores the output of the computation
+    immediately invoked.
+    Also, inplace arithmetic operations
+    (``+=``, ``-=``, ``*=``, ``/=``, ``**=``) are implemented. Note that ``=``
+    doesn't perform inplace substitution but just replaces the object
+    reference. Instead, you can use :func:`~nnabla.NdArray.copy_from` for
+    inplace substitution.
 
     Args:
         shape (tuple or int): Shape of tuple.
+
     """
 
     @staticmethod
@@ -76,6 +152,16 @@ cdef class NdArray:
         return "<NdArray({}) at {}>".format(
             self.shape, hex(id(self)))
 
+    def __eq__(self, other):
+        '''Compare the addresses of their C++ objects.
+        '''
+        return (< NdArray > self).arrp == ( < NdArray ?> other).arrp
+
+    def __hash__(self):
+        '''Returns hash of the integer address of holding C++ object.
+        '''
+        return hash(< intptr_t > (( < NdArray > self).arrp))
+
     @property
     def shape(self):
         """Shape of the N-d array.
@@ -85,11 +171,39 @@ cdef class NdArray:
         """
         return tuple(self.arrp.shape())
 
+
+    def data_ptr(self, dtype, ctx=None):
+        """Get array's pointer.
+
+        The behavior is similar to `cast` method but returns the data pointer based on the `ctx`.
+        If the `ctx` is not specified, the default context obtained by `nn.get_current_context` is used.
+
+        Args: 
+            dtype (:obj:`numpy.dtype`):  Numpy Data type.
+            ctx (:obj:`nnabla.Context`, optional): Context descriptor.
+
+        Returns:
+            int: The data pointer.
+        
+        """
+        if ctx is not None:
+            ctx_ = ctx
+        else:
+            import nnabla as nn
+            ctx_ = nn.get_current_context()
+        cdef int type_num = np.dtype(dtype).num
+        cdef CContext cctx = <CContext ?> ctx_
+        cdef unsigned long ptr
+        with nogil:
+            ptr = <unsigned long> self.arrp.data_ptr(< dtypes > type_num, cctx, False)
+        return ptr
+
+
     @property
     def size(self):
         """Total size of the N-d array.
 
-        Retuns: int
+        Returns: int
 
         """
         return self.arrp.size(-1)
@@ -152,12 +266,14 @@ cdef class NdArray:
         Returns:
             :obj:`numpy.array` if ``ctx`` is None, otherwise nothing.
         """
-        import nnabla as nn
-        ctx_ = nn.context()
+        from nnabla_ext.cpu import context
+        ctx_ = context()
         if ctx is not None:
             ctx_ = ctx
         cdef int type_num = np.dtype(dtype).num
-        self.arrp.cast( < dtypes > type_num, < CContext ?> ctx_)
+        cdef CContext cctx = <CContext ?> ctx_
+        with nogil:
+            self.arrp.cast(< dtypes > type_num, cctx, False)
         if ctx is None:
             return self.data
 
@@ -177,29 +293,27 @@ cdef class NdArray:
         Returns: :obj:`numpy.ndarray`
 
         """
-        cdef int type_num
-        cdef vector[np.npy_intp] shape
-        cdef Shape_t shape_base
-        cdef CArray * arr
-        import nnabla as nn
-        ctx = nn.context()
-        try:
-            type_num = <int > self.arrp.array().get().dtype()
-        except:
-            type_num = np.dtype(np.float32).num
-        shape.resize(self.arrp.ndim())
-        shape_base = self.arrp.shape()
-        copy(shape_base.begin(), shape_base.end(), shape.begin())
-        arr = <CArray * > (self.arrp.cast(< dtypes > type_num, ctx))
-        cdef np.ndarray ndarray = np.PyArray_SimpleNewFromData(
-            shape.size(), shape.data(), type_num, arr.pointer())
-        ndarray.base = <PyObject * > self
-        Py_INCREF(self)
-        return ndarray
+        return c_as_numpy_array(self.arrp, 'rw')
 
     @data.setter
     def data(self, value):
         self.data[...] = value
+
+    def get_data(self, str mode='rw'):
+        '''
+        Returns the values held by this array as a :class:`numpy.ndarray`
+        with a specified mode.
+
+        Args:
+            mode (str): Computation becomes more efficient if right one is chosen.
+                * 'r': Read-only access.
+                * 'w': Write-only access.
+                * 'rw': You can both read and write.
+
+        See :function:`nnabla._nd_array.NdArray.data for more details.
+
+        '''
+        return c_as_numpy_array(self.arrp, mode)
 
     def zero(self):
         """
@@ -235,3 +349,100 @@ cdef class NdArray:
         cdef int type_num
         type_num = <int > self.arrp.array().get().dtype()
         return np.dtype(np.PyArray_TypeObjectFromType(type_num))
+
+    def __pos__(self):
+        return AOP.pos(self)
+
+    def __neg__(self):
+        return AOP.neg(self)
+
+    def __add__(x, y):
+        return AOP.add(x, y)
+
+    def __sub__(x, y):
+        return AOP.sub(x, y)
+
+    def __mul__(x, y):
+        return AOP.mul(x, y)
+
+    def __truediv__(x, y):
+        return AOP.truediv(x, y)
+
+    def __div__(x, y):
+        return AOP.div(x, y)
+
+    def __pow__(x, y, z):
+        return AOP.pow(x, y, z)
+
+    def __iadd__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.add2(self, x, outputs=[self])
+        else:
+            F.add_scalar(self, x, outputs=[self])
+        return self
+
+    def __isub__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.sub2(self, x, outputs=[self])
+        else:
+            F.add_scalar(self, -x, outputs=[self])
+        return self
+
+    def __imul__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.mul2(self, x, outputs=[self])
+        else:
+            F.mul_scalar(self, x, outputs=[self])
+        return self
+
+    def __idiv__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.div2(self, x, outputs=[self])
+        else:
+            F.mul_scalar(self, 1. / x, outputs=[self])
+        return self
+
+    def __itruediv__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.div2(self, x, outputs=[self])
+        else:
+            F.mul_scalar(self, 1. / x, outputs=[self])
+        return self
+
+    def __ipow__(self, x):
+        import nnabla.functions as F
+        if isinstance(x, (NdArray, Variable)):
+            F.pow2(self, x, outputs=[self])
+        else:
+            F.pow_scalar(self, x, outputs=[self])
+        return self
+
+    def copy_from(self, NdArray arr):
+        """
+        Copy values from another NdArray object.
+
+        It returns the caller object itself.
+        :func:`nnabla.functions.identity` is called internally to copy values.
+
+        Args:
+            arr (~nnabla.NdArray): Values will be copied to the caller object.
+                The shape of ``arr``` must be same as the caller object.
+
+        Returns:
+            :obj:`nnabla.NdArray`
+
+        """
+        import nnabla.functions as F
+        F.identity(arr, outputs=[self])
+        return self
+
+    def __getitem__(self, key):
+        return IDX.getitem(self, key)
+
+    def __setitem__(self, key, value):
+        IDX.setitem(self, key, value)

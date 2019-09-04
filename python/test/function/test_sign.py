@@ -14,7 +14,6 @@
 
 import pytest
 import numpy as np
-import nnabla as nn
 import nnabla.functions as F
 from nbla_test_utils import list_context
 
@@ -35,7 +34,7 @@ def ref_grad_sign(x, dy, alpha):
 
 @pytest.mark.parametrize("ctx, func_name", ctxs)
 @pytest.mark.parametrize("seed", [313])
-@pytest.mark.parametrize("alpha", [0.0, -1.0])
+@pytest.mark.parametrize("alpha", [0.0, -1.0, 1.0])
 def test_sign_forward_backward(seed, alpha, ctx, func_name):
     from nbla_test_utils import function_tester
     rng = np.random.RandomState(seed)

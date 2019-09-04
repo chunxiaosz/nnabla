@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <nbla/cpu.hpp>
+#include <nbla/singleton_manager.hpp>
 #include <nbla/solver.hpp>
 
 #include <algorithm>
@@ -20,6 +22,7 @@
 namespace nbla {
 
 using std::make_shared;
+using std::make_pair;
 
 Solver::Solver(const Context &ctx) : ctx_(ctx), setup_called_(false) {}
 
@@ -28,7 +31,7 @@ Solver::~Solver() {}
 void Solver::setup() {
   if (setup_called_)
     return;
-  // Check if specifiedd array_class by context matches to allowed array
+  // Check if specified array_class by context matches to allowed array
   // classes.
   int array_class_index =
       0; // Default array is 0-th array_class in allowed_array_classes().
@@ -55,7 +58,7 @@ void Solver::set_parameters(const vector<pair<string, VariablePtr>> &params,
         if (retain_state) {
           NBLA_CHECK(kv.second->shape() == it->second.p->shape(),
                      error_code::value,
-                     "Could ont retain state. The shapes of %s didn't match. "
+                     "Could not retain state. The shapes of %s didn't match. "
                      "Given: (%s) != previously: (%s)",
                      kv.first.c_str(),
                      string_join(kv.second->shape(), string(", ")).c_str(),
@@ -83,6 +86,32 @@ void Solver::clear_parameters() {
     remove_state_impl(key);
   }
   params_.clear();
+}
+
+vector<pair<string, VariablePtr>> Solver::get_parameters() {
+  vector<pair<string, VariablePtr>> params;
+  for (auto &kv : params_) {
+    auto elm = make_pair(kv.first, kv.second.p);
+    params.push_back(elm);
+  }
+  return params;
+}
+
+vector<pair<string, Solver::SolverState>> Solver::get_states() {
+  vector<pair<string, Solver::SolverState>> states;
+  for (auto &kv0 : states_) {
+    states.push_back({kv0.first, kv0.second});
+  }
+  return states;
+}
+
+void Solver::set_states(const vector<pair<string, SolverState>> &states) {
+  for (auto &kv0 : states) {
+    auto it = states_.find(kv0.first);
+    NBLA_CHECK(it != states_.end(), error_code::value,
+               "Set weight parameter for %s first.", kv0.first.c_str());
+    it->second = kv0.second;
+  }
 }
 
 void Solver::zero_grad() {
@@ -117,8 +146,63 @@ void Solver::weight_decay(float decay_rate) {
   }
 }
 
+bool Solver::check_inf_grad() {
+  for (auto &kv : params_) {
+    SyncedArrayPtr g = kv.second.p->grad()->array();
+    if (kv.second.at == g->modification_count()) {
+      // The gradient is not computed. Skip.
+      continue;
+    }
+    if (check_inf_grad_impl(kv.first, kv.second.p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// TODO: potential to speed-up
+bool Solver::check_nan_grad() {
+  for (auto &kv : params_) {
+    SyncedArrayPtr g = kv.second.p->grad()->array();
+    if (kv.second.at == g->modification_count()) {
+      // The gradient is not computed. Skip.
+      continue;
+    }
+    if (check_nan_grad_impl(kv.first, kv.second.p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// TODO: potential to speed-up
+bool Solver::check_inf_or_nan_grad() {
+  for (auto &kv : params_) {
+    SyncedArrayPtr g = kv.second.p->grad()->array();
+    if (kv.second.at == g->modification_count()) {
+      // The gradient is not computed. Skip.
+      continue;
+    }
+    if (check_inf_or_nan_grad_impl(kv.first, kv.second.p)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Methods for the mixed-precision training
+void Solver::scale_grad(float scale) {
+  for (auto &kv : params_) {
+    SyncedArrayPtr g = kv.second.p->grad()->array();
+    if (kv.second.at == g->modification_count()) {
+      // The gradient is not computed. Skip.
+      continue;
+    }
+    scale_grad_impl(kv.first, kv.second.p, scale);
+  }
+}
+
 vector<string> Solver::allowed_array_classes() {
-  NBLA_ERROR(error_code::not_implemented,
-             "Derived class of Solver must implement allowed_array_classes().")
+  return SingletonManager::get<Cpu>()->array_classes();
 }
 }

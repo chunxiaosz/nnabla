@@ -1,10 +1,15 @@
-Cython>=0.24
+numpy>=1.16,<1.17
+Cython
 boto3
-futures
+requests
 h5py
-numpy>=1.8.2
+onnx
 protobuf
+pyyaml
+requests
 tqdm
+pillow
 virtualenv
 
 autopep8
+

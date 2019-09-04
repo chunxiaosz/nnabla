@@ -26,7 +26,7 @@ The problem was `,##__VA_ARGS__` only works in GCC, but not works in MSVC
 compiler. On the other hand, the workaround by NBLA_VA_ARGS for MSVC breaks
 GCC preprocessor. I decided to branch very big portion of source code, but
 I understand this approach is very inefficient and not maintainable. If anybody
-has an idea, please let me know or PR is wellcome.
+has an idea, please let me know or PR is welcome.
 */
 #ifdef _MSC_VER
 /**
@@ -55,7 +55,7 @@ has an idea, please let me know or PR is wellcome.
 /**
 This will be used inside init method.
 */
-#define NBLA_REGISTER_SOLVER_IMPL(BASE, CLS, RANK, BACKEND, ENGINE, ...)       \
+#define NBLA_REGISTER_SOLVER_IMPL(BASE, CLS, BACKEND, ...)                     \
   {                                                                            \
     std::function<shared_ptr<Solver>(                                          \
         const Context &NBLA_VA_ARGS(__VA_ARGS__))>                             \
@@ -65,7 +65,7 @@ This will be used inside init method.
         };                                                                     \
     typedef FunctionDbItem<Solver NBLA_VA_ARGS(__VA_ARGS__)> item_t;           \
     get_##BASE##SolverRegistry().add(                                          \
-        shared_ptr<item_t>(new item_t{RANK, BACKEND, ENGINE, func}));          \
+        shared_ptr<item_t>(new item_t{BACKEND, func}));                        \
   }
 #else
 /**
@@ -93,7 +93,7 @@ This will be used inside init method.
 /**
 This will be used inside init method.
 */
-#define NBLA_REGISTER_SOLVER_IMPL(BASE, CLS, RANK, BACKEND, ENGINE, ...)       \
+#define NBLA_REGISTER_SOLVER_IMPL(BASE, CLS, BACKEND, ...)                     \
   {                                                                            \
     std::function<shared_ptr<Solver>(const Context &, ##__VA_ARGS__)> func =   \
         [](NBLA_ARGDEFS(const Context &, ##__VA_ARGS__)) {                     \
@@ -102,7 +102,7 @@ This will be used inside init method.
         };                                                                     \
     typedef FunctionDbItem<Solver, ##__VA_ARGS__> item_t;                      \
     get_##BASE##SolverRegistry().add(                                          \
-        shared_ptr<item_t>(new item_t{RANK, BACKEND, ENGINE, func}));          \
+        shared_ptr<item_t>(new item_t{BACKEND, func}));                        \
   }
 #endif
 }

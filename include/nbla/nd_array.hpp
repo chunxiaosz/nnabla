@@ -17,9 +17,13 @@
 
 #include <nbla/synced_array.hpp>
 
+#include <memory>
+
 namespace nbla {
 
-/** Dtype and backend agnotic multi-dimensional array.
+using std::make_shared;
+
+/** Dtype and backend agnostic multi-dimensional array.
  */
 class NdArray {
   SyncedArrayPtr array_;
@@ -35,6 +39,12 @@ class NdArray {
 public:
   typedef shared_ptr<NdArray> Ptr;
 
+  /** Create a shared_ptr instance of NdArray.
+   */
+  template <typename... Args> static Ptr create(Args... args) {
+    return make_shared<NdArray>(args...);
+  }
+
   /** Ctor given shape.
 
       Create an SyncedArray instance with corresponding size.
@@ -45,7 +55,7 @@ public:
 
   /** Ctor given previously created SyncedArray and shape.
 
-      @param[in] array Previouly created SyncedArray.
+      @param[in] array Previously created SyncedArray.
       @param[in] shape Shape of N-d array. Total size must be the same as
      SyncedArray.
    */
@@ -56,7 +66,7 @@ public:
       @param[in] shape N-d array will be reshaped to this shape.
       @param[in] force If total size doesn't match and true is given, array will
      reset to total size, which means the content of array will become totally
-     diffrent one.
+     different one.
    */
   NBLA_API void reshape(const Shape_t &shape, bool force = false);
 
@@ -90,7 +100,7 @@ public:
    */
   NBLA_API SyncedArrayPtr array();
 
-  /** Replace SyncedArray instance with previously creatd another one.
+  /** Replace SyncedArray instance with previously created another one.
    */
   NBLA_API void set_array(SyncedArrayPtr array);
 
@@ -115,12 +125,36 @@ public:
    */
   NBLA_API const Array *get(dtypes dtype, const Context &ctx);
 
+  /** Get const array as a shared_ptr.
+
+      @sa get
+   */
+  NBLA_API shared_ptr<const Array> get_sp(dtypes dtype, const Context &ctx);
+
+  /** Get array's ptr.
+
+      @param[in] dtype Enum of data type.
+      @param[in] ctx Descriptor of array backend.
+      @param[in] write_only No synchronization happens.
+   */
+  NBLA_API unsigned long data_ptr(dtypes dtype, const Context &ctx,
+                                  bool write_only = false);
+
   /** Get mutable array with specified dtype and backend description.
 
       @param[in] dtype Enum of data type.
       @param[in] ctx Descriptor of array backend.
+      @param[in] write_only No synchronization happens.
    */
-  NBLA_API Array *cast(dtypes dtype, const Context &ctx);
+  NBLA_API Array *cast(dtypes dtype, const Context &ctx,
+                       bool write_only = false);
+
+  /** Get a mutable array as a shared_ptr
+
+      @sa cast
+   */
+  NBLA_API shared_ptr<Array> cast_sp(dtypes dtype, const Context &ctx,
+                                     bool write_only = false);
 
   DISABLE_COPY_AND_ASSIGN(NdArray);
 };

@@ -30,12 +30,33 @@ namespace nbla {
 NBLA_API vector<CgVariablePtr> create_function_outputs(CgFunctionPtr cg_f,
                                                        int n_outputs = -1);
 
-/**
+/** Connect function to network.
+
+    Create outputs on-demand.
  */
 NBLA_API vector<CgVariablePtr> connect(CgFunctionPtr cg_f,
                                        const vector<CgVariablePtr> &inputs,
                                        int n_outputs = 1,
                                        vector<NdArrayPtr> inplace_outputs = {},
                                        bool execute = false);
+
+/** Steal some variable properties from `from` CgVariable to `to` in order to
+   rewire previously constructed graphs.
+
+    It takes parent, need_grad flags, inplace flags, and the variable contents.
+
+    @param[in] from Its parent function is stolen by 'to'.
+    @param[in,out] to A variable 'from''s parent stolen to.
+*/
+NBLA_API void steal_variable_from_to(CgVariablePtr from, CgVariablePtr to);
+
+/** Forward given variables in single inference
+ * Forward all given variables with shared fclosed flags.
+ */
+NBLA_API void forward_all(const vector<CgVariablePtr> variables,
+                          bool clear_buffer = false,
+                          bool clear_no_need_grad = false,
+                          function_hook_type function_pre_hook = nullptr,
+                          function_hook_type function_post_hook = nullptr);
 }
 #endif

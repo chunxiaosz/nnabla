@@ -1,0 +1,16 @@
+* text=auto
+*.h text
+*.c text
+*.cpp text
+*.hpp text
+*.txt text
+*.rst text
+*.md text
+*.toc text
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.jpeg binary
+*.pgm binary

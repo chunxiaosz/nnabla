@@ -14,7 +14,7 @@
 
 #ifndef __NBLA_SOLVER_RMSPROP_HPP__
 #define __NBLA_SOLVER_RMSPROP_HPP__
-#include <nbla/solver/base_solver.hpp>
+#include <nbla/solver.hpp>
 #include <nbla/solver_registry.hpp>
 
 namespace nbla {
@@ -25,9 +25,10 @@ NBLA_REGISTER_SOLVER_HEADER(RMSprop, float /*lr*/, float /*decay*/,
 /** RMSprop. This is defined as
 
 \f[
-g_t \leftarrow \Delta w_t
-v_t \leftarrow \gamma v_{t-1} + \left(1 - \gamma \right) g_t^2
+g_t \leftarrow \Delta w_t\\
+v_t \leftarrow \gamma v_{t-1} + \left(1 - \gamma \right) g_t^2\\
 w_{t+1} \leftarrow w_t - \eta \frac{g_t}{\sqrt{v_t} + \epsilon}
+\f]
 
 @param lr \f$\eta\f$ Learning rate.
 @param decay \f$\gamma\f$ Decay rate.
@@ -37,12 +38,11 @@ w_{t+1} \leftarrow w_t - \eta \frac{g_t}{\sqrt{v_t} + \epsilon}
 Geoff Hinton
 Lecture	6a : Overview of mini-batch gradient descent
 http://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf
-\f]
 
 
 \ingroup SolverImplGrp
 */
-template <typename T> class NBLA_API RMSprop : public BaseSolver<T> {
+template <typename T> class NBLA_API RMSprop : public Solver {
 public:
   RMSprop(const Context &ctx, float lr, float decay, float eps);
   virtual ~RMSprop();
@@ -56,11 +56,14 @@ protected:
   float decay_; ///< decay factor
   float eps_;   ///< small value
 
-  unordered_map<string, VariablePtr> state_;
-
   virtual void set_state_impl(const string &key, VariablePtr param);
   virtual void remove_state_impl(const string &key);
   virtual void update_impl(const string &key, VariablePtr param);
+  NBLA_DECL_WEIGHT_DECAY();
+  NBLA_DECL_CHECK_INF_GRAD();
+  NBLA_DECL_CHECK_NAN_GRAD();
+  NBLA_DECL_CHECK_INF_OR_NAN_GRAD();
+  NBLA_DECL_SCALE_GRAD();
 };
 }
 #endif

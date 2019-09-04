@@ -12,6 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from __future__ import print_function
+
 import os
 import csv
 
@@ -30,7 +32,7 @@ from nnabla.parameter import get_parameters, set_parameter, save_parameters, loa
 
 def save_param_in_txt(x, filepath):
     with open(filepath, 'w') as output:
-        print >> output, x.shape
+        print(x.shape, file=output)
         np.array(x).tofile(output, sep="\n")
 
 
@@ -49,10 +51,12 @@ def load_param_in_txt(name, filepath):
 # subcommands
 # ===========
 def decode_param_command(args, **kwargs):
-    if not os.path.exists(args.outdir):
+    try:
         os.makedirs(args.outdir)
+    except OSError:
+        pass  # python2 does not support exists_ok arg
 
-    # Load prameter
+    # Load parameter
     logger.log(99, 'Loading parameters...')
     load_parameters(args.param)
 
@@ -62,11 +66,15 @@ def decode_param_command(args, **kwargs):
         logger.log(99, key)
         file_path = args.outdir + os.sep + key.replace('/', '~') + '.txt'
         dir = os.path.dirname(file_path)
-        if not os.path.exists(dir):
+        try:
             os.makedirs(dir)
+        except:
+            pass  # python2 does not support exists_ok arg
+
         save_param_in_txt(variable.d, file_path)
 
     logger.log(99, 'Decode Parameter Completed.')
+    return True
 
 
 def encode_param_command(args, **kwargs):
@@ -79,8 +87,31 @@ def encode_param_command(args, **kwargs):
         load_param_in_txt(os.path.splitext(file_path)[0].replace(
             '~', '/'), os.path.join(args.indir, file_path))
 
-    # Save prameter
+    # Save parameter
     logger.log(99, 'Saving parameters...')
     save_parameters(args.param)
 
     logger.log(99, 'Encode Parameter Completed.')
+    return True
+
+
+def add_decode_param_command(subparsers):
+    # Decode param
+    subparser = subparsers.add_parser(
+        'decode_param', help='Decode parameter to plain text.')
+    subparser.add_argument(
+        '-p', '--param', help='path to parameter file', required=False)
+    subparser.add_argument(
+        '-o', '--outdir', help='output directory', required=True)
+    subparser.set_defaults(func=decode_param_command)
+
+
+def add_encode_param_command(subparsers):
+    # Encode param
+    subparser = subparsers.add_parser(
+        'encode_param', help='Encode plain text to parameter format.')
+    subparser.add_argument(
+        '-i', '--indir', help='input directory', required=True)
+    subparser.add_argument(
+        '-p', '--param', help='path to parameter file', required=False)
+    subparser.set_defaults(func=encode_param_command)

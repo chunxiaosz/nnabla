@@ -47,6 +47,28 @@ it is called (e.g. Adam).
 
 */
 class NBLA_API Solver {
+public:
+  /** Struct for storing both parameter state Variable and iteration
+   */
+  struct SolverState {
+    unordered_map<string, VariablePtr> pstate; ///< Parameter state maps
+    uint32_t t;                                ///< Iteration as state
+    SolverState(){};
+    SolverState(unordered_map<string, VariablePtr> pstate, uint32_t t) {
+      this->pstate = pstate;
+      this->t = t;
+    };
+    SolverState(const SolverState &state) {
+      this->pstate = state.pstate;
+      this->t = state.t;
+    };
+    SolverState &operator=(const SolverState &state) {
+      this->pstate = state.pstate;
+      this->t = state.t;
+      return *this;
+    };
+  };
+
 protected:
   /** Struct for storing both parameter Variable and update status of gradient.
    */
@@ -55,11 +77,15 @@ protected:
      */
     VariablePtr p;
 
-    /** Moficiation count of p.grad_, which tells whether or not the grad region
+    /** Modification count of p.grad_, which tells whether or not the grad
+     * region
      * is modified after the previous update.
      */
     size_t at;
   };
+
+  unordered_map<string, SolverState> states_; ///< Hash map of states
+
   Context ctx_;                          ///< Stores Context.
   unordered_map<string, Params> params_; ///< Hash map of parameters
   bool setup_called_;
@@ -75,10 +101,10 @@ public:
   ///< Name of Solver class, usually class name.
   virtual string name() = 0;
 
-  ///< Lerning rate
+  ///< Learning rate
   virtual float learning_rate() = 0;
 
-  ///< Set lerning rate
+  ///< Set learning rate
   virtual void set_learning_rate(float learning_rate) = 0;
 
   /** Zeroing grads for all #params_. This is usually called before running
@@ -106,6 +132,18 @@ public:
    */
   void clear_parameters();
 
+  /** Get all parameters.
+   */
+  vector<pair<string, VariablePtr>> get_parameters();
+
+  /** Get all states.
+   */
+  vector<pair<string, SolverState>> get_states();
+
+  /** Set states.
+   */
+  void set_states(const vector<pair<string, SolverState>> &params);
+
   /** Update all params using stored grads in #params_ by backpropagation.
 
   This internally calls update_impl() which must be implemented in a derived
@@ -130,6 +168,22 @@ public:
   */
   void weight_decay(float decay_rate);
 
+  /** Check if there is any inf on the gradients which were setup.
+   */
+  bool check_inf_grad();
+
+  /** Check if there is any nan on the gradients which were setup.
+   */
+  bool check_nan_grad();
+
+  /** Check if there is any inf or nan on the gradients which were setup.
+   */
+  bool check_inf_or_nan_grad();
+
+  /** Scale gradients,then increase the loss scale
+   */
+  void scale_grad(float scale);
+
   /** Get array classes that are allowed to be specified by Context
   */
   virtual vector<string> allowed_array_classes();
@@ -152,6 +206,10 @@ protected:
   */
   virtual void remove_state_impl(const string &key) = 0;
 
+  /**
+  */
+  // virtual void get_state_impl() = 0;
+
   /** Update implementation.
 
   @param key Key of parameter.
@@ -170,9 +228,77 @@ protected:
   virtual void weight_decay_impl(const string &key, VariablePtr param,
                                  float decay_rate) = 0;
 
+  /** Check if there is any inf on the gradients which were setup.
+   */
+  virtual bool check_inf_grad_impl(const string &key, VariablePtr param) = 0;
+
+  /** Check if there is any nan on the gradients which were setup.
+   */
+  virtual bool check_nan_grad_impl(const string &key, VariablePtr param) = 0;
+
+  /** Check if there is any inf or nan on the gradients which were setup.
+   */
+  virtual bool check_inf_or_nan_grad_impl(const string &key,
+                                          VariablePtr param) = 0;
+
+  /** Scale gradients, then increase the loss scale
+   */
+  virtual void scale_grad_impl(const string &key, VariablePtr param,
+                               float scale) = 0;
+
   DISABLE_COPY_AND_ASSIGN(Solver);
 };
 /*@}*/
+
+#define NBLA_DECL_WEIGHT_DECAY()                                               \
+  virtual void weight_decay_impl(const string &key, VariablePtr param,         \
+                                 float decay_rate)
+
+#define NBLA_DEF_WEIGHT_DECAY(SOLVER, WEIGHT_DECAY_FUNC)                       \
+  template <typename T>                                                        \
+  void SOLVER<T>::weight_decay_impl(const string &key, VariablePtr param,      \
+                                    float decay_rate) {                        \
+    WEIGHT_DECAY_FUNC<T>(this->ctx_, param, decay_rate);                       \
+  }
+
+#define NBLA_DECL_CHECK_INF_GRAD()                                             \
+  virtual bool check_inf_grad_impl(const string &key, VariablePtr param)
+
+#define NBLA_DEF_CHECK_INF_GRAD(SOLVER, CHECK_INF_GRAD_FUNC)                   \
+  template <typename T>                                                        \
+  bool SOLVER<T>::check_inf_grad_impl(const string &key, VariablePtr param) {  \
+    return CHECK_INF_GRAD_FUNC<T>(this->ctx_, param);                          \
+  }
+
+#define NBLA_DECL_CHECK_NAN_GRAD()                                             \
+  virtual bool check_nan_grad_impl(const string &key, VariablePtr param)
+
+#define NBLA_DEF_CHECK_NAN_GRAD(SOLVER, CHECK_NAN_GRAD_FUNC)                   \
+  template <typename T>                                                        \
+  bool SOLVER<T>::check_nan_grad_impl(const string &key, VariablePtr param) {  \
+    return CHECK_NAN_GRAD_FUNC<T>(this->ctx_, param);                          \
+  }
+
+#define NBLA_DECL_CHECK_INF_OR_NAN_GRAD()                                      \
+  virtual bool check_inf_or_nan_grad_impl(const string &key, VariablePtr param)
+
+#define NBLA_DEF_CHECK_INF_OR_NAN_GRAD(SOLVER, CHECK_INF_OR_NAN_GRAD_FUNC)     \
+  template <typename T>                                                        \
+  bool SOLVER<T>::check_inf_or_nan_grad_impl(const string &key,                \
+                                             VariablePtr param) {              \
+    return CHECK_INF_OR_NAN_GRAD_FUNC<T>(this->ctx_, param);                   \
+  }
+
+#define NBLA_DECL_SCALE_GRAD()                                                 \
+  virtual void scale_grad_impl(const string &key, VariablePtr param,           \
+                               float scale)
+
+#define NBLA_DEF_SCALE_GRAD(SOLVER, SCALE_GRAD_FUNC)                           \
+  template <typename T>                                                        \
+  void SOLVER<T>::scale_grad_impl(const string &key, VariablePtr param,        \
+                                  float scale) {                               \
+    SCALE_GRAD_FUNC<T>(this->ctx_, param, scale);                              \
+  }
 
 /** \defgroup SolverImplGrp Solver list */
 /*@{*/

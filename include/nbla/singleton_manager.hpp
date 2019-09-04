@@ -17,6 +17,8 @@
 
 #include <functional>
 #include <memory>
+#include <mutex>
+#include <thread>
 #include <unordered_map>
 
 #include <nbla/array.hpp>
@@ -36,6 +38,7 @@ place,
 and also to delete them by your hand.
  */
 class NBLA_API SingletonManager {
+
 public:
   /** Get or create an singleton instance of a class specified by the template
      argument.
@@ -72,6 +75,9 @@ private:
   unordered_map<int, pair<uintptr_t, std::function<void()>>> singletons_;
   unordered_map<uintptr_t, int> adr2id_; ///< Hash map from address to ID.
 
+  static SingletonManager
+      *self_; ///< Singleton instance pointer. Never be destroyed.
+
   /** Get this singleton (managing singletons) class.
    */
   static SingletonManager &get_self();
@@ -83,6 +89,9 @@ private:
 /** Reusable resources for ones and zeros for any devices.
 */
 class NBLA_API NNabla {
+  std::mutex mtx_zeros_;
+  std::mutex mtx_ones_;
+
 public:
   ~NNabla();
   /**
@@ -96,8 +105,8 @@ public:
   const void *zeros(Size_t size, dtypes dtype, const Context &ctx);
 
 protected:
-  unique_ptr<SyncedArray> ones_;
-  unique_ptr<SyncedArray> zeros_;
+  unordered_map<std::thread::id, shared_ptr<SyncedArray>> ones_;
+  unordered_map<std::thread::id, shared_ptr<SyncedArray>> zeros_;
 
 private:
   friend SingletonManager;

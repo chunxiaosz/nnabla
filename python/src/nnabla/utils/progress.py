@@ -12,7 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 from datetime import datetime, timedelta
+import nnabla.utils.callback as callback
+from nnabla import logger
 
 
 # state output
@@ -20,10 +23,18 @@ from datetime import datetime, timedelta
 state_file_name = ''
 last_state_datetime = datetime.now()
 
+# callback
+# ============
+state_callback = None
 
-def configure_progress(file_name):
-    global state_file_name
-    state_file_name = file_name
+
+def configure_progress(file_name, cb=None):
+    if file_name is not None:
+        global state_file_name
+        state_file_name = file_name
+    if cb is not None:
+        global state_callback
+        state_callback = cb
     progress(None)
 
 
@@ -32,6 +43,21 @@ def progress(state, progress=0.0):
         global last_state_datetime
         if last_state_datetime < datetime.now() + timedelta(milliseconds=-1000) or state is None:
             last_state_datetime = datetime.now()
-            with open(state_file_name, 'w') as f:
-                if state is not None:
-                    f.write(state + ' ({0:3.2f}%)'.format(progress * 100))
+            retry = 1
+            while True:
+                try:
+                    with open(state_file_name, 'w') as f:
+                        if state is not None:
+                            f.write(
+                                state + ' ({0:3.2f}%)'.format(progress * 100))
+                    break
+                except:
+                    retry += 1
+                    if retry > 100:
+                        logger.critical(
+                            'Failed to write to {}.'.format(state_file_name))
+                        raise
+                    time.sleep(0.1)
+    callback.update_progress('{0} ({1:3.2f}%)'.format(state, progress * 100))
+    if state_callback is not None:
+        state_callback(state, progress)

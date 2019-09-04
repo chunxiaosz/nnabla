@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// -*- coding:utf-8 -*-
-/*
- * Copyright (C) 2016 Sony Corporation
- * This is UNPUBLISHED PROPRIETARY SOURCE CODE of Sony Corporation;
- * the contents of this file is not to be disclosed to third parties, copied
- * or duplicated in any form, in whole or in part, without the prior written
- * permission of Sony Corporation.
- */
-
 /** ImageAugmentation
  */
 #ifndef __NBLA_FUNCTION_IMAGEAUGMENTATION_HPP__
@@ -49,7 +40,7 @@ Outputs:
 @tparam T Data type for computation and score variable.
 @param shape The output image data size.
 @param pad Border padding values for each spatial axis (height and width).
-Paddding will be added both sides of the dimension.
+Padding will be added both sides of the dimension.
 @param min_scale The minimum scale ratio when randomly scaling the image. For
 example, to scale down to 0.8 times the size of the original image, specify
 "0.8". To not apply random scaling, set both min_scale and max_scale to "1.0".

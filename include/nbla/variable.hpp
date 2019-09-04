@@ -38,7 +38,6 @@ class Variable {
   Shape_t strides_; ///< C-contiguous strides.
   Size_t size_;     ///< Size.
   Size_t ndim_;     ///< Number of dimensions.
-  bool need_grad_;  ///< Flag whether this variable needs backprop
   NdArrayPtr data_; ///< Storing forwardprop results.
   NdArrayPtr grad_; ///< Storing backprop results.
 
@@ -49,33 +48,25 @@ class Variable {
 public:
   typedef shared_ptr<Variable> Ptr;
 
+  /** Create a shared_ptr instance of Variable.
+   */
+  template <typename... Args> static Ptr create(Args... args) {
+    return make_shared<Variable>(args...);
+  }
+
   /**
   Constructor.
 
   @param shape Shape.
-  @param need_grad Flag whether backprop to this variable is required.
   */
-  NBLA_API Variable(const Shape_t &shape = {}, bool need_grad = false);
+  NBLA_API Variable(const Shape_t &shape = {});
 
   /**
   Constructor given NdArray.
 
   @param data A reference of NdArray created by another can be passed.
-  @param need_grad Flag whether backprop to this variable is required.
   */
-  NBLA_API Variable(NdArrayPtr data, bool need_grad = false);
-
-  /**
-  Setter of #need_grad_.
-
-  @param need_grad Flag.
-  */
-  NBLA_API void set_need_grad(bool need_grad);
-
-  /**
-  Getter of #need_grad_.
-  */
-  inline bool need_grad() const { return need_grad_; }
+  NBLA_API Variable(NdArrayPtr data);
 
   /** Reshape.
    */
@@ -134,8 +125,9 @@ public:
 
   @sa SyncedArray::cast() and Array::pointer().
   */
-  template <typename T> T *cast_data_and_get_pointer(const Context &ctx) {
-    Array *arr = data_->array()->cast(get_dtype<T>(), ctx);
+  template <typename T>
+  T *cast_data_and_get_pointer(const Context &ctx, bool write_only = false) {
+    Array *arr = data_->array()->cast(get_dtype<T>(), ctx, write_only);
     return arr->pointer<T>();
   }
 
@@ -144,8 +136,9 @@ public:
 
   @sa SyncedArray::cast() and Array::pointer().
   */
-  template <typename T> T *cast_grad_and_get_pointer(const Context &ctx) {
-    Array *arr = grad_->array()->cast(get_dtype<T>(), ctx);
+  template <typename T>
+  T *cast_grad_and_get_pointer(const Context &ctx, bool write_only = false) {
+    Array *arr = grad_->array()->cast(get_dtype<T>(), ctx, write_only);
     return arr->pointer<T>();
   }
 

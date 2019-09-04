@@ -17,7 +17,11 @@
 
 #include <nbla/function.hpp>
 
+#include <utility>
+
 namespace nbla {
+
+using std::pair;
 
 // Forward declaration
 class CgVariable;
@@ -25,13 +29,35 @@ typedef shared_ptr<CgVariable> CgVariablePtr;
 
 vector<Variable *> to_variable_pointers(const vector<CgVariablePtr> &variables);
 
-/**
+/** Computation graph function.
+
+A Function object is held in this object, and pointers to inputs and outputs
+also kept.
  */
 class CgFunction {
+  friend class CgVariable;
   int rank_{0};
   vector<CgVariablePtr> inputs_;
   FunctionPtr func_;
-  vector<std::weak_ptr<CgVariable>> outputs_;
+
+  /* Wrapper object of output CgVariable.
+   */
+  struct OutputWrapper {
+    std::weak_ptr<CgVariable> weak_reference;
+    /*
+      Output variables are weakly referenced to avoid circular dependencies,
+      which means output variables may be deleted before it is used.
+      To recover a deleted CgVariable instance, a Variable instance originally
+      held by the CgVariable is kept aside the weak reference.
+      This dosesn't cause circular dependency.
+    */
+    VariablePtr internal_variable;
+
+    void set(CgVariablePtr v);
+    CgVariablePtr get();
+  };
+
+  vector<OutputWrapper> outputs_;
   bool need_grad_{false};
   string info_;
 
@@ -42,13 +68,28 @@ public:
       @param[in] func shared_ptr of Function.
   */
   NBLA_API CgFunction(FunctionPtr func);
-  /** Set inputs.
-      Check if any of inputs requires gradient computation and store the flag in
-      self. Also, rank will be set according to inputs' ranks.
+
+  /** Dtor. Erase all function_reference_ of inputs.
+  */
+  NBLA_API ~CgFunction();
+
+  /** Set inputs. Note user shouldn't call this directly.
 
       @param[in] inputs Function inputs as CgVariables.
   */
-  NBLA_API void set_inputs(const vector<CgVariablePtr> &inputs);
+  inline void set_inputs_(const vector<CgVariablePtr> &inputs) {
+    inputs_ = inputs;
+  }
+
+  /** Calling setup function of an Function object internally held.
+   */
+  void setup();
+
+  /** Get a weak reference output as a shared reference by index or raise.
+
+      @param[in] i Output index.
+  */
+  inline CgVariablePtr output(int i);
 
   /**
    */
@@ -60,7 +101,15 @@ public:
 
   /**
    */
+  inline void set_need_grad(bool b) { need_grad_ = b; }
+
+  /**
+   */
   inline int rank() const { return rank_; }
+
+  /**
+   */
+  inline void set_rank_(int rank) { rank_ = rank; }
 
   /** Store outputs as weak references (weak_ptr).
 
@@ -84,12 +133,8 @@ public:
    */
   inline size_t num_outputs() const { return outputs_.size(); }
 
-  /** Update need_grad flag by seeing output variables.
-   */
-  NBLA_API bool update_need_grad();
-
   NBLA_API vector<Variable *> function_inputs();
-  NBLA_API vector<VariablePtr> function_outputs_shared();
+  NBLA_API pair<vector<CgVariablePtr>, vector<Variable *>> function_outputs();
 
   /**
    */
@@ -97,6 +142,11 @@ public:
   /**
    */
   NBLA_API string info() const { return info_; }
+
+  void check_data_inplace(int i, CgVariablePtr input,
+                          const vector<CgVariablePtr> &outputs);
+  void check_grad_inplace(int i, CgVariablePtr input);
+  void verify_during_forward();
 };
 
 /**

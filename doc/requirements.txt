@@ -1,4 +1,4 @@
-nnabla
+nnabla==1.2.0.dev1
 sphinx-rtd-theme
 sphinxcontrib-actdiag
 sphinxcontrib-blockdiag

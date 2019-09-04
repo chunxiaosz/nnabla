@@ -14,7 +14,7 @@
 
 #ifndef __NBLA_SOLVER_NESTOREV_HPP__
 #define __NBLA_SOLVER_NESTOREV_HPP__
-#include <nbla/solver/base_solver.hpp>
+#include <nbla/solver.hpp>
 #include <nbla/solver_registry.hpp>
 
 namespace nbla {
@@ -24,8 +24,9 @@ NBLA_REGISTER_SOLVER_HEADER(Nesterov, float /*lr*/, float /*momentum*/);
 /** Nesterov accelerated gradient. This is defined as
 
 \f[
-v_t \leftarrow \gamma v_{t-1} - \eta \Delta w_t
+v_t \leftarrow \gamma v_{t-1} - \eta \Delta w_t \\
 w_{t+1} \leftarrow w_t - \gamma v_{t-1} + \left(1 + \gamma \right) v_t
+\f]
 
 @param lr \f$\eta\f$ Learning rate.
 @param momentum \f$\gamma\f$ Momentum
@@ -34,12 +35,10 @@ w_{t+1} \leftarrow w_t - \gamma v_{t-1} + \left(1 + \gamma \right) v_t
 Yurii Nesterov
 A method for unconstrained convex minimization problem with the rate of
 convergence o(1/k2)
-\f]
-
 
 \ingroup SolverImplGrp
 */
-template <typename T> class NBLA_API Nesterov : public BaseSolver<T> {
+template <typename T> class NBLA_API Nesterov : public Solver {
 public:
   Nesterov(const Context &ctx, float lr, float momentum);
   virtual ~Nesterov();
@@ -52,11 +51,14 @@ protected:
   float lr_; ///< learning rate
   float momentum_;
 
-  unordered_map<string, VariablePtr> state_;
-
   virtual void set_state_impl(const string &key, VariablePtr param);
   virtual void remove_state_impl(const string &key);
   virtual void update_impl(const string &key, VariablePtr param);
+  NBLA_DECL_WEIGHT_DECAY();
+  NBLA_DECL_CHECK_INF_GRAD();
+  NBLA_DECL_CHECK_NAN_GRAD();
+  NBLA_DECL_CHECK_INF_OR_NAN_GRAD();
+  NBLA_DECL_SCALE_GRAD();
 };
 }
 #endif

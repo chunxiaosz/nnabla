@@ -21,10 +21,6 @@ import nnabla.functions as F
 from nbla_test_utils import list_context
 
 ctxs = list_context('RandomCrop')
-"""
-if hasattr(nn.extensions, 'cuda'):
-    ctxs += [(nn.extensions.cuda.default_context(), 'RandomCropCuda')]
-"""
 
 
 @pytest.mark.parametrize("ctx, func_name", ctxs)
@@ -53,7 +49,7 @@ def test_random_crop_forward_backward(seed, inshape, shape, ctx, func_name):
     else:
         max_correl = pearsonr(o.d.flatten(), inputs[0].flatten())[0]
 
-    assert(max_correl == 1.0)
+    np.testing.assert_almost_equal(max_correl, 1.0)
 
     assert o.parent.name == func_name
 

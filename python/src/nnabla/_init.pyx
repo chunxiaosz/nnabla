@@ -18,20 +18,18 @@ from _init cimport(
     register_gc, SingletonManager,
     _cpu_array_classes, _cpu_set_array_classes)
 
-available_contexts = {}
+available_contexts = []
 
 
-def add_available_context(ctx, backend):
+def add_available_context(ctx):
     if ctx not in available_contexts:
-        available_contexts[ctx] = []
-    if backend not in available_contexts[ctx]:
-        available_contexts[ctx].append(backend)
+        available_contexts.append(ctx)
 
 # Explicitly initialize NNabla.
 
 
 logger.info('Initializing CPU extension...')
-add_available_context('cpu', 'default')
+add_available_context('cpu')
 _init.init_cpu()
 
 
@@ -56,6 +54,8 @@ def finalize():
     Clear all resources before exiting Python. Register to atexit.
     """
     import gc
+    import nnabla as nn
+    nn.clear_parameters()
     gc.collect()
     SingletonManager.clear()
 
@@ -69,15 +69,15 @@ atexit.register(finalize)
 # TODO: Move  to C++.
 ###############################################################################
 
-__cache_prefered = None
+__cache_preferred = None
 _original_array_classes = _cpu_array_classes()
 _callbacks_prefer_cached_array = []
 _callbacks_reset_array_preference = []
 
 
-def _cached_array_prefered():
-    global __cache_prefered
-    return __cache_prefered
+def _cached_array_preferred():
+    global __cache_preferred
+    return __cache_preferred
 
 
 def _add_callback_prefer_cached_array(func):
@@ -91,11 +91,11 @@ def _add_callback_reset_array_preference(func):
 
 
 def prefer_cached_array(prefer):
-    global __cache_prefered
+    global __cache_preferred
     global _callbacks_prefer_cached_array
-    if __cache_prefered == prefer:
+    if __cache_preferred == prefer:
         return
-    __cache_prefered = prefer
+    __cache_preferred = prefer
 
     a = _cpu_array_classes()
     a = sorted(enumerate(a), key=lambda x: (prefer ^ ('Cached' in x[1]), x[0]))
@@ -111,10 +111,10 @@ def reset_array_preference():
 
     Reset array class preference.
     """
-    global __cache_prefered
+    global __cache_preferred
     global _original_array_classes
     global _callbacks_reset_array_preference
-    __cache_prefered = None
+    __cache_preferred = None
     _cpu_set_array_classes(_original_array_classes)
     for func in _callbacks_reset_array_preference:
         func()
@@ -125,3 +125,33 @@ def array_classes():
     return _cpu_array_classes()
 
 ###############################################################################
+
+
+def device_synchronize(str device):
+    """Dummy.
+
+    Args:
+        device (int): Device ID.
+
+    """
+    cpu_device_synchronize(device)
+
+
+def get_device_count():
+    """Always returns 1.
+
+    Returns:
+        int: Number of devices available.
+
+    """
+    return cpu_get_device_count()
+
+
+def get_devices():
+    """Dummy.
+
+    Returns:
+        list of str: List of available devices.
+
+    """
+    return cpu_get_devices()

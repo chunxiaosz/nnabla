@@ -31,7 +31,7 @@ void Function::setup(const Variables &inputs, const Variables &outputs) {
     fall_back_func_->setup(inputs, outputs);
     return;
   }
-  // Check if specifiedd array_class by context matches to allowed array
+  // Check if specified array_class by context matches to allowed array
   // classes.
   int array_class_index =
       0; // Default array is 0-th array_class in allowed_array_classes().
@@ -52,7 +52,7 @@ void Function::setup(const Variables &inputs, const Variables &outputs) {
              "%s needs at least %d outputs (given %d). ", this->name().c_str(),
              this->min_outputs(), outputs.size());
 
-  // Call setup implemention
+  // Call setup implementation
   this->setup_impl(inputs, outputs);
 
   if (fall_back_func_) {
@@ -111,20 +111,50 @@ void Function::forward(const Variables &inputs, const Variables &outputs) {
 }
 
 void Function::backward(const Variables &inputs, const Variables &outputs,
+                        const vector<bool> &propagate_down,
                         const vector<bool> &accum) {
   if (fall_back_func_) {
     // Fall back to the specified Function.
-    fall_back_func_->backward(inputs, outputs, accum);
+    fall_back_func_->backward(inputs, outputs, propagate_down, accum);
     return;
   }
   check_shapes(this, inputs, outputs, in_shapes, out_shapes);
-  vector<bool> propagate_down(inputs.size());
-  transform(inputs.begin(), inputs.end(), propagate_down.begin(),
-            [](Variable *v) { return v->need_grad(); });
-  NBLA_CHECK(accum.size() == propagate_down.size(), error_code::value,
-             "The size of the flags of accumulation gradient must be equal to "
-             "the number of inputs (%d != %d). Error in '%s'.",
-             accum.size(), propagate_down.size(), this->name().c_str());
+  // Always zero-ing gradient buffer when accum is false.
+  // NNabla's backward implementation takes an accum flag for each input
+  // variable. An accum flag is automatically determined by our graph engine.
+  // Suppose we have a Variable, and it is used twice in two difference
+  // Functions. The input variable of two different functions is responsible for
+  // storing the gradients from the functions, which are summed up. A simpler
+  // implementation to achieve this is to insert a split function that splits a
+  // variable to two and that is responsible for summing up the gradient signals
+  // from two outputs. However, in NNabla, to reduce computation and memory
+  // overhead, this is achieved in each function by the `accum` flag. In the
+  // first of two functions, `accum` is set as false by the graph engine, and
+  // the backward signal is "written" to the gradient buffer of the input
+  // variable. In the second function, `accum` is set as true, and the backward
+  // signal is "accumulated" to the buffer.
+  // In some functions, gradient is not computed (not defined), and a developer
+  // might think zeros should be propagated to the inputs gradient, and a
+  // developer probably does nothing in backward implementation. However, if
+  // `accum` is false and grad is initialized as following, the gradient buffer
+  // is not initialized (i.e. values in buffer are undefined), and propagated to
+  // predecessor functions, which is a hazardous behavior.
+  // To make it safer, gradients are initialized here as zeros when `accum` is
+  // false.
+  // Note that this does not impose overhead by explicitly calling zero()
+  // function when write_only access to variable grad is properly used, because
+  // zero() function is lazily evaluated and write_only option in
+  // Variable::cast* function resets all lazy-evaluation flags before getting an
+  // array instance.
+  if (!this->prohibit_zero_input_grad()) {
+    for (int i = 0; i < inputs.size(); i++) {
+      if (propagate_down[i] && !accum[i] &&
+          (this->inplace_grad(i) == Function::NOT_INPLACE)) {
+        inputs[i]->grad()->zero();
+      }
+    }
+  }
+  // Calling the sub-class implementation of backward.
   this->backward_impl(inputs, outputs, propagate_down, accum);
 }
 

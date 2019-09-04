@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// -*- coding:utf-8 -*-
-/*
- * Copyright (C) 2016 Sony Corporation
- * This is UNPUBLISHED PROPRIETARY SOURCE CODE of Sony Corporation;
- * the contents of this file is not to be disclosed to third parties, copied
- * or duplicated in any form, in whole or in part, without the prior written
- * permission of Sony Corporation.
- */
-
 /** Embed
  */
 #ifndef __NBLA_FUNCTION_EMBED_HPP__
@@ -37,7 +28,7 @@ NBLA_REGISTER_FUNCTION_HEADER(Embed);
 /** Embed slices a matrix/tensor with indexing array/tensor.
 
 Inputs:
-- Indeces with shape @f$(I_0, ..., I_N)@f$
+- Indexes with shape @f$(I_0, ..., I_N)@f$
 - Weights with shape @f$(W_0, ..., W_M)@f$
 
 Outputs:

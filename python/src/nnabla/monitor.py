@@ -32,8 +32,10 @@ class Monitor(object):
 
     def __init__(self, save_path):
         self._save_path = save_path
-        if not os.path.isdir(save_path):
+        try:
             os.makedirs(save_path)
+        except OSError:
+            pass  # python2 does not support exists_ok arg
 
     @property
     def save_path(self):
@@ -59,7 +61,7 @@ class MonitorSeries(object):
         monitor (~nnabla.monitor.Monitor): Monitor class instance.
         interval (int): Interval of flush the outputs. The values added by
             ``.add()`` are averaged during interval.
-        verbose (bool): Ouput to screen.
+        verbose (bool): Output to screen.
 
     """
 
@@ -70,7 +72,7 @@ class MonitorSeries(object):
         self.fd = None
         if monitor is not None:
             self.fd = open(os.path.join(
-                monitor.save_path, name.replace(" ", "-")) + ".series.txt", 'w', 0)
+                monitor.save_path, name.replace(" ", "-")) + ".series.txt", 'w', 1)
         self.flush_at = -1
         self.buf = []
 
@@ -131,7 +133,7 @@ class MonitorTimeElapsed(object):
         self.fd = None
         if monitor is not None:
             self.fd = open(os.path.join(
-                monitor.save_path, name.replace(" ", "-")) + ".timer.txt", 'w', 0)
+                monitor.save_path, name.replace(" ", "-")) + ".timer.txt", 'w', 1)
         self.flush_at = -1
         self.start = time.time()
         self.lap = self.start
@@ -207,8 +209,10 @@ class MonitorImage(object):
             self.normalize_method = self.default_normalize_method
         self.num_images = num_images
         self.save_dir = os.path.join(monitor.save_path, name.replace(' ', '-'))
-        if not os.path.isdir(self.save_dir):
+        try:
             os.makedirs(self.save_dir)
+        except OSError:
+            pass  # python2 does not support exists_ok arg
 
     def default_normalize_method(self, x):
         ma = x.max()
@@ -227,7 +231,7 @@ class MonitorImage(object):
 
         """
         import nnabla as nn
-        from scipy.misc import imsave
+        from nnabla.utils.image_utils import imsave
         if index != 0 and (index + 1) % self.interval != 0:
             return
         if isinstance(var, nn.Variable):
@@ -306,7 +310,7 @@ class MonitorImageTile(MonitorImage):
 
         """
         import nnabla as nn
-        from scipy.misc import imsave
+        from nnabla.utils.image_utils import imsave
         if index != 0 and (index + 1) % self.interval != 0:
             return
         if isinstance(var, nn.Variable):
@@ -369,3 +373,64 @@ def tile_images(data, padsize=1, padval=0):
         # Return as (H, W)
         return data.reshape(data.shape[:2])
     return data
+
+
+def plot_series(filename, plot_kwargs=None):
+    '''Plot series data from MonitorSeries output text file.
+
+    Args:
+        filename (str): Path to *.series.txt file produced by :obj:`~nnabla.MonitorSeries` class.
+        plot_kwags (dict, optional):
+            Keyward arguments passed to :function:`matplotlib.pyplot.plot`.
+
+    Note:
+        matplotlib package is required.
+
+    '''
+    import matplotlib.pyplot as plt
+
+    if plot_kwargs is None:
+        plot_kwargs = {}
+
+    data = np.genfromtxt(filename, dtype='i8,f4', names=['k', 'v'])
+    index = data['k']
+    values = data['v']
+    plt.plot(index, values, **plot_kwargs)
+
+
+def plot_time_elapsed(filename, elapsed=False, unit='s', plot_kwargs=None):
+    '''Plot series data from MonitorTimeElapsed output text file.
+
+    Args:
+        filename (str): Path to *.series.txt file produced by :obj:`~nnabla.MonitorSeries` class.
+        elapsed (bool): If ``True``, it plots the total elapsed time.
+        unit (str):
+            Time unit chosen from ``'s'``, ``'m'``, ``'h'``, or ``'d'``.
+        plot_kwags (dict, optional):
+            Keyward arguments passed to :function:`matplotlib.pyplot.plot`.
+
+    Note:
+        matplotlib package is required.
+
+    '''
+    import matplotlib.pyplot as plt
+
+    if plot_kwargs is None:
+        plot_kwargs = {}
+
+    data_column = 3 if elapsed else 1
+    data = np.genfromtxt(filename, dtype='i8,f4',
+                         usecols=(0, data_column), names=['k', 'v'])
+    index = data['k']
+    values = data['v']
+    if unit == 's':
+        pass
+    elif unit == 'm':
+        values /= 60
+    elif unit == 'h':
+        values /= 3600
+    elif unit == 'd':
+        values /= 3600 * 24
+    else:
+        raise ValueError('The argument `unit` must be chosen from {s|m|h|d}.')
+    plt.plot(index, values, **plot_kwargs)

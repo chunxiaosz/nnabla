@@ -14,7 +14,7 @@
 
 #ifndef __NBLA_SOLVER_MOMENTUM_HPP__
 #define __NBLA_SOLVER_MOMENTUM_HPP__
-#include <nbla/solver/base_solver.hpp>
+#include <nbla/solver.hpp>
 #include <nbla/solver_registry.hpp>
 
 namespace nbla {
@@ -24,21 +24,20 @@ NBLA_REGISTER_SOLVER_HEADER(Momentum, float /*lr*/, float /*momentum*/);
 /** Momentum. This is defined as
 
 \f[
-v_t \leftarrow \gamma v_{t-1} + \eta \Delta w_t
+v_t \leftarrow \gamma v_{t-1} + \eta \Delta w_t\\
 w_{t+1} \leftarrow w_t - v_t
-
+\f]
 @param lr \f$\eta\f$ Learning rate.
 @param momentum \f$\gamma\f$ Momentum
 
 @sa See the paper linked below for more details.
 Ning Qian : On the Momentum Term in Gradient Descent Learning Algorithms
 http://www.columbia.edu/~nq6/publications/momentum.pdf
-\f]
 
 
 \ingroup SolverImplGrp
 */
-template <typename T> class NBLA_API Momentum : public BaseSolver<T> {
+template <typename T> class NBLA_API Momentum : public Solver {
 public:
   Momentum(const Context &ctx, float lr, float momentum);
   virtual ~Momentum();
@@ -56,6 +55,11 @@ protected:
   virtual void set_state_impl(const string &key, VariablePtr param);
   virtual void remove_state_impl(const string &key);
   virtual void update_impl(const string &key, VariablePtr param);
+  NBLA_DECL_WEIGHT_DECAY();
+  NBLA_DECL_CHECK_INF_GRAD();
+  NBLA_DECL_CHECK_NAN_GRAD();
+  NBLA_DECL_CHECK_INF_OR_NAN_GRAD();
+  NBLA_DECL_SCALE_GRAD();
 };
 }
 #endif

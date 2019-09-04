@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pytest
 import numpy as np
 
 import nnabla as nn
@@ -35,3 +34,5 @@ def test_nd_array():
     assert np.all(b.data == 0)
     a.fill(3)
     assert np.all(a.data == 3)
+    b.copy_from(a)
+    assert np.all(a.data == b.data)

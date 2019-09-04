@@ -15,126 +15,133 @@
 import argparse
 import os
 import sys
+import warnings
+warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+from nnabla.logger import logger
+
+
+def _nnabla_version():
+    import nnabla
+    import nnabla.utils.callback as callback
+    version_string = 'Version:{}, Build:{}'.format(nnabla.__version__,
+                                                   nnabla.__build_number__)
+    callback_version_string = callback.get_callback_version()
+    if callback_version_string is not None:
+        version_string += ', Callback:{}'.format(callback_version_string)
+    return version_string
+
+
+def version_command(args):
+    print(_nnabla_version())
+
+
+return_value = None
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    global return_value
+    import six.moves._thread as thread
+    import threading
+    thread.stack_size(128 * 1024 * 1024)
+    sys.setrecursionlimit(0x3fffffff)
+    main_thread = threading.Thread(target=cli_main)
+    main_thread.start()
+    main_thread.join()
+    if not return_value:
+        sys.exit(-1)
+
+
+def cli_main():
+    global return_value
+    return_value = False
+
+    parser = argparse.ArgumentParser(description='Command line interface ' +
+                                     'for NNabla({})'.format(_nnabla_version()))
+    parser.add_argument(
+        '-m', '--mpi', help='exec with mpi.', action='store_true')
+
     subparsers = parser.add_subparsers()
 
-    try:
-        from nnabla.utils.cli.train import train_command
-        # Train
-        subparser = subparsers.add_parser('train')
-        subparser.add_argument(
-            '-c', '--config', help='path to nntxt', required=True)
-        subparser.add_argument(
-            '-p', '--param', help='path to parameter file', required=False)
-        subparser.add_argument(
-            '-o', '--outdir', help='output directory', required=True)
-        subparser.set_defaults(func=train_command)
-    except:
-        pass
+    import nnabla
+    from nnabla.utils.cli.train import add_train_command
+    add_train_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.forward import forward_command
-        # Forward
-        subparser = subparsers.add_parser('forward')
-        subparser.add_argument(
-            '-c', '--config', help='path to nntxt', required=True)
-        subparser.add_argument(
-            '-p', '--param', help='path to parameter file', required=False)
-        subparser.add_argument(
-            '-d', '--dataset', help='path to CSV dataset', required=False)
-        subparser.add_argument(
-            '-o', '--outdir', help='output directory', required=True)
-        subparser.set_defaults(func=forward_command)
+    from nnabla.utils.cli.forward import add_infer_command, add_forward_command
+    add_infer_command(subparsers)
+    add_forward_command(subparsers)
 
-    except:
-        pass
+    from nnabla.utils.cli.encode_decode_param import add_decode_param_command, add_encode_param_command
+    add_encode_param_command(subparsers)
+    add_decode_param_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.encode_decode_param import decode_param_command
-        # Decode param
-        subparser = subparsers.add_parser('decode_param')
-        subparser.add_argument(
-            '-p', '--param', help='path to parameter file', required=False)
-        subparser.add_argument(
-            '-o', '--outdir', help='output directory', required=True)
-        subparser.set_defaults(func=decode_param_command)
-    except:
-        pass
+    from nnabla.utils.cli.profile import add_profile_command
+    add_profile_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.encode_decode_param import encode_param_command
-        # Encode param
-        subparser = subparsers.add_parser('encode_param')
-        subparser.add_argument(
-            '-i', '--indir', help='input directory', required=True)
-        subparser.add_argument(
-            '-p', '--param', help='path to parameter file', required=False)
-        subparser.set_defaults(func=encode_param_command)
-    except:
-        pass
+    from nnabla.utils.cli.conv_dataset import add_conv_dataset_command
+    add_conv_dataset_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.profile import profile_command
-        # Profile
-        subparser = subparsers.add_parser('profile')
-        subparser.add_argument(
-            '-c', '--config', help='path to nntxt', required=True)
-        subparser.add_argument(
-            '-o', '--outdir', help='output directory', required=True)
-        subparser.set_defaults(func=profile_command)
-    except:
-        pass
+    from nnabla.utils.cli.compare_with_cpu import add_compare_with_cpu_command
+    add_compare_with_cpu_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.conv_dataset import conv_dataset_command
-        # Convert dataset
-        subparser = subparsers.add_parser('conv_dataset')
-        subparser.add_argument('-F', '--force', action='store_true',
-                               help='force overwrite destination', required=False)
-        subparser.add_argument(
-            '-S', '--shuffle', action='store_true', help='shuffle data', required=False)
-        subparser.add_argument('-N', '--normalize', action='store_true',
-                               help='normalize data range', required=False)
-        subparser.add_argument('source')
-        subparser.add_argument('destination')
-        subparser.set_defaults(func=conv_dataset_command)
-    except:
-        pass
+    from nnabla.utils.cli.create_image_classification_dataset import add_create_image_classification_dataset_command
+    add_create_image_classification_dataset_command(subparsers)
 
-    try:
-        from nnabla.utils.cli.compare_with_cpu import compare_with_cpu_command
-        # Compare with CPU
-        subparser = subparsers.add_parser('compare_with_cpu')
-        subparser.add_argument(
-            '-c', '--config', help='path to nntxt', required=True)
-        subparser.add_argument(
-            '-c2', '--config2', help='path to cpu nntxt', required=True)
-        subparser.add_argument(
-            '-o', '--outdir', help='output directory', required=True)
-        subparser.set_defaults(func=compare_with_cpu_command)
-    except:
-        pass
+    from nnabla.utils.cli.create_object_detection_dataset import add_create_object_detection_dataset_command
+    add_create_object_detection_dataset_command(subparsers)
 
-    # Search build tools
-    tooldir = None
-    for _tooldir in [os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'dev', 'build-tools')),
-                     os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', '..', 'build-tools'))]:
-        if os.path.exists(_tooldir):
-            tooldir = _tooldir
-            sys.path.append(os.path.join(tooldir, 'code_formatter'))
-            sys.path.append(os.path.join(tooldir, 'code_generator'))
+    from nnabla.utils.cli.uploader import add_upload_command
+    add_upload_command(subparsers)
 
-    # Code formatter
-    import auto_format_command
-    subparser = subparsers.add_parser('auto-format')
-    subparser.add_argument('base')
-    subparser.set_defaults(func=auto_format_command.command)
+    from nnabla.utils.cli.uploader import add_create_tar_command
+    add_create_tar_command(subparsers)
+
+    from nnabla.utils.cli.convert import add_convert_command
+    add_convert_command(subparsers)
+
+    from nnabla.utils.cli.func_info import add_function_info_command
+    add_function_info_command(subparsers)
+
+    from nnabla.utils.cli.plot import (
+        add_plot_series_command, add_plot_timer_command)
+    add_plot_series_command(subparsers)
+    add_plot_timer_command(subparsers)
+
+    from nnabla.utils.cli.draw_graph import add_draw_graph_command
+    add_draw_graph_command(subparsers)
+
+    # Version
+    subparser = subparsers.add_parser(
+        'version', help='Print version and build number.')
+    subparser.set_defaults(func=version_command)
+
+    print('NNabla command line interface ({})'.format(_nnabla_version()))
 
     args = parser.parse_args()
-    args.func(args)
+
+    if 'func' not in args:
+        parser.print_help(sys.stderr)
+        sys.exit(-1)
+
+    if args.mpi:
+        from nnabla.utils.communicator_util import create_communicator
+        comm = create_communicator()
+        try:
+            return_value = args.func(args)
+        except:
+            import traceback
+            print(traceback.format_exc())
+
+            logger.log(99, "ABORTED")
+            os.kill(os.getpid(), 9)
+            # comm.abort()
+    else:
+        try:
+            return_value = args.func(args)
+        except:
+            import traceback
+            print(traceback.format_exc())
+            return_value = False
+            sys.exit(-1)
 
 
 if __name__ == '__main__':

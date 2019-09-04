@@ -12,8 +12,12 @@ Python API Reference
     api/variable
     api/function
     api/parametric_function
+    api/grad
     api/solver
+    api/communicator
     api/monitor
     api/data_iterator
-    api/contrib
+    api/utils
     api/ext
+    api/models
+    api/experimental

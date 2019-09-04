@@ -17,9 +17,11 @@ import shutil
 import sys
 from tqdm import tqdm
 
-from nnabla.logger import logger
+from nnabla.utils.create_cache import CreateCache
 from nnabla.utils.data_source import DataSourceWithFileCache
 from nnabla.utils.data_source_implements import CacheDataSource, CsvDataSource
+
+from nnabla.config import nnabla_config
 
 
 def _convert(args, source):
@@ -29,10 +31,13 @@ def _convert(args, source):
             print('Number of Data: {}'.format(ds.size))
             print('Shuffle:        {}'.format(args.shuffle))
             print('Normalize:      {}'.format(args.normalize))
-            pbar = tqdm(total=ds.size)
+            pbar = None
+            if nnabla_config.get('MISC', 'misc_show_progress') == 'True':
+                pbar = tqdm(total=ds.size)
             for i in range(ds.size):
                 ds._get_data(i)
-                pbar.update(1)
+                if pbar is not None:
+                    pbar.update(1)
     else:
         print('Command `conv_dataset` only supports CACHE as destination.')
 
@@ -42,24 +47,49 @@ def conv_dataset_command(args):
         if not args.force:
             print(
                 'File or directory [{}] is exists use `-F` option to overwrite it.'.format(args.destination))
-            sys.exit(-1)
+            return False
         elif os.path.isdir(args.destination):
             print('Overwrite destination [{}].'.format(args.destination))
             shutil.rmtree(args.destination, ignore_errors=True)
             os.mkdir(args.destination)
         else:
-            print('Cannnot overwrite file [{}] please delete it.'.format(
+            print('Cannot overwrite file [{}] please delete it.'.format(
                 args.destination))
-            sys.exit(-1)
+            return False
     else:
         os.mkdir(args.destination)
     datasource = None
     _, ext = os.path.splitext(args.source)
     if ext.lower() == '.csv':
-        with CsvDataSource(args.source, shuffle=args.shuffle, normalize=args.normalize) as source:
-            _convert(args, source)
+
+        if os.path.exists(args.source):
+            cc = CreateCache(args.source, shuffle=args.shuffle)
+            print('Number of Data: {}'.format(cc._size))
+            print('Shuffle:        {}'.format(cc._shuffle))
+            print('Normalize:      {}'.format(args.normalize))
+            cc.create(args.destination, normalize=args.normalize)
+        else:
+            with CsvDataSource(args.source, shuffle=args.shuffle, normalize=args.normalize) as source:
+                _convert(args, source)
+
     elif ext.lower() == '.cache':
         with CacheDataSource(args.source, shuffle=args.shuffle, normalize=args.normalize) as source:
             _convert(args, source)
     else:
         print('Command `conv_dataset` only supports CSV or CACHE as source.')
+    return True
+
+
+def add_conv_dataset_command(subparsers):
+    # Convert dataset
+    subparser = subparsers.add_parser(
+        'conv_dataset', help='Convert CSV dataset to cache.')
+    subparser.add_argument('-F', '--force', action='store_true',
+                           help='force overwrite destination', required=False)
+    subparser.add_argument(
+        '-S', '--shuffle', action='store_true', help='shuffle data', required=False)
+    subparser.add_argument('-N', '--normalize', action='store_true',
+                           help='normalize data range', required=False)
+    subparser.add_argument('source')
+    subparser.add_argument('destination')
+    subparser.set_defaults(func=conv_dataset_command)

@@ -42,3 +42,33 @@ def test_concatenate_forward_backward(seed, axis, different_size, num_inputs, ct
     function_tester(rng, F.concatenate, ref_concatenate, inputs,
                     func_kwargs=dict(axis=axis), ctx=ctx, func_name=func_name,
                     atol_b=1e-2)
+
+
+def test_no_value():
+    a = nn.Variable(())
+    b = nn.Variable(())
+    with pytest.raises(RuntimeError):
+        F.concatenate(*[a, b], axis=0)
+
+
+@pytest.mark.parametrize("ctx, func_name", ctxs)
+@pytest.mark.parametrize("axis", [0, 1, 2])
+@pytest.mark.parametrize("seed", [313])
+@pytest.mark.parametrize('different_size', [False, True])
+@pytest.mark.parametrize('num_inputs', [2, 3])
+def test_concatenate_double_backward(seed, axis, different_size, num_inputs, ctx, func_name):
+    from nbla_test_utils import cap_ignore_region, backward_function_tester
+    rng = np.random.RandomState(seed)
+    shape0 = [2, 3, 4]
+    inputs = []
+    for i in range(num_inputs):
+        inputs.append(rng.randn(*shape0).astype(np.float32))
+        shape0[axis] += int(different_size)
+    backward_function_tester(rng, F.concatenate, None,
+                             inputs=inputs,
+                             func_args=[], func_kwargs=dict(axis=axis),
+                             atol_b=1e-2,
+                             atol_accum=1e-2,
+                             dstep=1e-3,
+                             ctx=ctx, func_name=None,
+                             disable_half_test=True)

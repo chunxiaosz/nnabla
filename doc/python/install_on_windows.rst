@@ -15,12 +15,12 @@ The following software are required for installation:
 
 * Required software.
 
-  * Python 2.7: PIP
+  * Python 2.7 or Python>=3.5: PIP
   * Microsoft Visual C++ 2015 Redistributable
 
 * Recommended.
 
-  * CUDA Toolkit 8.0 / cuDNN 6.0 (for NVIDIA GPU users)
+  * CUDA Toolkit and CUDNN (if you have CUDA GPUs).
 
 
 Setup environment
@@ -55,8 +55,8 @@ Microsoft Visual C++ 2015 Redistributable
 Get and install from `here <https://www.microsoft.com/en-us/download/details.aspx?id=52685>`_
 
 
-CUDA Toolkit 8.0 / cuDNN 6.0
-""""""""""""""""""""""""""""
+CUDA and CUDNN library
+""""""""""""""""""""""
 
 If you are using a NVIDIA GPU, execution speed will be drastically improved by installing the following software.
 
@@ -64,79 +64,15 @@ If you are using a NVIDIA GPU, execution speed will be drastically improved by i
 
 `cuDNN <https://developer.nvidia.com/cudnn>`_
 
-To install cuDNN, copy bin, include and lib to C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v8.0
+To install cuDNN, copy bin, include and lib to C:\\Program Files\\NVIDIA GPU Computing Toolkit\\CUDA\\v{CUDA_VERSION}
+
+See :ref:`a list of compatible CUDNN versions of CUDA extension packages <cuda-cudnn-compatibility>`.
 
 
 Install
 ^^^^^^^
 
-Install CPU package.
-
-.. code-block:: doscon
-
-    > pip install nnabla
-
-
-If you are using a NVIDIA GPU, you can also install the CUDA/cuDNN package.
-
-.. code-block:: doscon
-
-    > pip install nnabla_ext_cuda
-
-
-Check for running.
-
-.. code-block:: doscon
-
-    > ipython
-    
-    In [1]: import nnabla
-    2017-06-06 21:36:07,101 [nnabla][Level 99]: Initializing CPU extension...
-    
-    In [2]: exit
-    
-    >
-
-
-Check for running (CUDA/cuDNN).
-
-.. code-block:: doscon
-
-    > ipython
-    
-    In [1]: import nnabla_ext.cuda.cudnn
-    2017-06-16 18:42:18,881 [nnabla][Level 99]: Initializing CPU extension...
-    2017-06-16 18:42:19,923 [nnabla][Level 99]: Initializing CUDA extension...
-    2017-06-16 18:42:20,243 [nnabla][Level 99]: Initializing cuDNN extension...
-    
-    In [2]: exit
-    
-    >
-
-
-Run an Example
-^^^^^^^^^^^^^^
-
-Download NNabla repository from `here <https://github.com/sony/nnabla/archive/master.zip>`_, unzip it and move to example directory.
-
-.. code-block:: doscon
-
-    > cd nnabla\examples\vision\mnist
-
-
-Run MNIST classification
-
-.. code-block:: doscon
-
-    nnabla\examples\vision\mnist > python classification.py
-
-
-Run MNIST classification with CUDA/cuDNN
-
-.. code-block:: doscon
-
-    nnabla\examples\vision\mnist > python classification.py -c cuda.cudnn
-
+See :ref:`pip-installation-workflow`.
 
 FAQ
 ^^^

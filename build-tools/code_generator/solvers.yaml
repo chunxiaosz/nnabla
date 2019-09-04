@@ -1,0 +1,469 @@
+Sgd:
+  snake_name: sgd
+  doc: |
+    Stochastic gradient descent (SGD) optimizer.
+
+    .. math::
+        w_{t+1} \leftarrow w_t - \eta \Delta w_t
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+
+SgdW:
+  snake_name: sgdw
+  doc: |
+    Stochastic gradient descent (SGD) optimizer with decoupled weight decay.
+
+    .. math::
+        w_{t+1} \leftarrow w_t - \eta \Delta w_t - (\eta / \eta_0)\lambda\w_t
+
+    where :math:`\lambda` is the decoupled weight decay rate.
+
+  references:
+    - |
+      `Loshchilov and Hutter, Decoupled Weight Decay Regularization.
+      <https://arxiv.org/abs/1711.05101>`_
+
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+    momentum:
+      type: float
+      default: 0.9
+      doc: Decay rate of momentum.
+    wd:
+      type: float
+      default: 1e-4
+      doc: Weight decay rate.
+
+Momentum:
+  snake_name: momentum
+  doc: |
+    SGD with Momentum.
+
+    .. math::
+        v_t &\leftarrow \gamma v_{t-1} + \eta \Delta w_t\\
+        w_{t+1} &\leftarrow w_t - v_t
+
+  references:
+    - |
+      `Ning Qian : On the Momentum Term in Gradient Descent Learning Algorithms.
+      <http://www.columbia.edu/~nq6/publications/momentum.pdf>`_
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+    momentum:
+      type: float
+      default: 0.9
+      doc: Decay rate of momentum.
+
+Lars:
+  snake_name: lars
+  doc: |
+    LARS with Momentum.
+
+    .. math::
+        \lambda &\leftarrow \eta
+          \frac{\| w_t \|}{\| \Delta w_t + \beta w_t \|} \\
+        v_{t+1} &\leftarrow m v_t + \gamma \lambda
+          (\Delta w_t + \beta w_t) \\
+        w_{t+1} &\leftarrow w_t - v_{t+1}
+
+  references:
+    - |
+      `Yang You, Igor Gitman, Boris Ginsburg
+      Large Batch Training of Convolutional Networks
+      <https://arxiv.org/abs/1708.03888>`_
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+    momentum:
+      type: float
+      default: 0.9
+      doc: Decay rate of momentum.
+    coefficient:
+      type: float
+      default: 0.001
+      doc: Trust coefficient
+    eps:
+      type: float
+      default: 1e-6
+      doc: Small value for avoiding zero devision(:math:`\epsilon`).
+
+Nesterov:
+  snake_name: nesterov
+  doc: |
+    Nesterov Accelerated Gradient optimizer.
+
+    .. math::
+        v_t &\leftarrow \gamma v_{t-1} - \eta \Delta w_t\\
+        w_{t+1} &\leftarrow w_t - \gamma v_{t-1} + \left(1 + \gamma \right) v_t
+
+  references:
+    - |
+      Yurii Nesterov. A method for unconstrained convex minimization problem with
+      the rate of convergence :math:`o(1/k2)`.
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+    momentum:
+      type: float
+      default: 0.9
+      doc: Decay rate of momentum.
+              
+Adadelta:
+  snake_name: adadelta
+  doc: |
+    AdaDelta optimizer.
+
+    .. math::
+        g_t &\leftarrow \Delta w_t\\
+        v_t &\leftarrow - \frac{RMS \left[ v_t \right]_{t-1}}
+            {RMS \left[ g \right]_t}g_t\\
+        w_{t+1} &\leftarrow w_t + \eta v_t
+
+  references:
+    - |
+      `Matthew D. Zeiler.
+      ADADELTA: An Adaptive Learning Rate Method.
+      <https://arxiv.org/abs/1212.5701>`_
+
+  arguments:
+    lr:
+      type: float
+      default: 1.0
+      doc: Learning rate (:math:`\eta`).
+    decay:
+      type: float
+      default: 0.95
+      doc: Decay rate (:math:`\gamma`).
+    eps:
+      type: float
+      default: 1e-6
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+
+Adagrad:
+  snake_name: adagrad
+  doc: |
+    ADAGrad optimizer.
+
+    .. math::
+        g_t &\leftarrow \Delta w_t\\
+        G_t &\leftarrow G_{t-1} + g_t^2\\
+        w_{t+1} &\leftarrow w_t - \frac{\eta}{\sqrt{G_t} + \epsilon} g_t
+
+  references:
+    - |
+      `John Duchi, Elad Hazan and Yoram Singer (2011).
+      Adaptive Subgradient Methods for Online Learning and Stochastic Optimization.
+      <http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf>`_
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-2
+      doc: Learning rate (:math:`\eta`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+  
+RMSprop:
+  snake_name: rmsprop
+  doc: |
+    RMSprop optimizer (Geoffery Hinton).
+
+    .. math::
+        g_t &\leftarrow \Delta w_t\\
+        v_t &\leftarrow \gamma v_{t-1} + \left(1 - \gamma \right) g_t^2\\
+        w_{t+1} &\leftarrow w_t - \eta \frac{g_t}{\sqrt{v_t} + \epsilon}
+
+  references:
+    - |
+      `Geoff Hinton.
+      Lecture 6a : Overview of mini-batch gradient descent.
+      <http://www.cs.toronto.edu/~tijmen/csc321/slides/lecture_slides_lec6.pdf>`_
+
+  arguments:
+    lr:
+      type: float
+      default: 1e-3
+      doc: Learning rate (:math:`\eta`).
+    decay:
+      type: float
+      default: 0.9
+      doc: Decay rate (:math:`\gamma`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+              
+Adam:
+  snake_name: adam
+  doc: |
+    ADAM optimizer.
+
+    .. math::
+        m_t &\leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t\\
+        v_t &\leftarrow \beta_2 v_{t-1} + (1 - \beta_2) g_t^2\\
+        w_{t+1} &\leftarrow w_t - \alpha
+            \frac{\sqrt{1 - \beta_2^t}}{1 - \beta_1^t}
+            \frac{m_t}{\sqrt{v_t} + \epsilon}
+
+    where :math:`g_t` denotes a gradient, and let :math:`m_0 \leftarrow 0`
+    and :math:`v_0 \leftarrow 0`.
+
+  references:
+    - |
+      `Kingma and Ba, Adam: A Method for Stochastic Optimization.
+      <https://arxiv.org/abs/1412.6980>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 1e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of second-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+
+AdamW:
+  snake_name: adamw
+  doc: |
+    ADAM optimizer with decoupled weight decay.
+
+    .. math::
+        m_t &\leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t\\
+        v_t &\leftarrow \beta_2 v_{t-1} + (1 - \beta_2) g_t^2\\
+        w_{t+1} &\leftarrow w_t - \alpha
+            \frac{\sqrt{1 - \beta_2^t}}{1 - \beta_1^t}
+            \frac{m_t}{\sqrt{v_t} + \epsilon} - \eta_t\lambda\w_{t-1}
+
+    where :math:`g_t` denotes a gradient, :math:`\lambda` is the decoupled weight decay rate,
+    and :math:`m_0 \leftarrow 0` and :math:`v_0 \leftarrow 0`.
+
+  references:
+    - |
+      `Loshchilov and Hutter, Decoupled Weight Decay Regularization.
+      <https://arxiv.org/abs/1711.05101>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 1e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of second-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+    wd:
+      type: float
+      default: 1e-4
+      doc: Weight decay rate.
+
+
+AdaBound:
+  snake_name: adabound
+  doc: |
+    AdaBound optimizer applies dynamic bounds on learning rates to Adam.
+
+    .. math::
+        w_{t+1} &\leftarrow w_t - \eta_t*m_t\\
+        \eta_t = clip( \alpha\frac{\sqrt{1 - \beta_2^t}}{(1 - \beta_1^t)(\sqrt{v_t} + \epsilon)}, \eta_l(t), \eta_u(t))\\
+        \eta_l(t) = (1 - (1/((1-\gamma)t+1)))\alpha^*\\
+        \eta_u(t) = (1 + (1/((1-\gamma)t)))\alpha^*
+
+    where :math:`\alpha^*` (``final_lr``) is scaled by a factor defined as the current value of :math:`\alpha` (set by ``set_learning_rate(lr)``) over initial value of :math:`\alpha`, so that learnign rate scheduling is properly applied to both :math:`\alpha` and :math:`\alpha^*`.
+
+  references:
+    - |
+      `L. Luo, Y. Xiong, Y. Liu and X. Sun. Adaptive Gradient Methods with Dynamic Bound of Learning Rate.
+      <https://arxiv.org/abs/1902.09843>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 1e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of second-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+    final_lr:
+      type: float
+      default: 0.1
+      doc: Final (SGD) learning rate.
+    gamma:
+      type: float
+      default: 0.001
+      doc: Convergence speed of the bound functions.
+Adamax:
+  snake_name: adamax
+  doc: |
+    ADAMAX Optimizer.
+
+    .. math::
+        m_t &\leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t\\
+        v_t &\leftarrow \max\left(\beta_2 v_{t-1}, |g_t|\right)\\
+        w_{t+1} &\leftarrow w_t - \alpha
+            \frac{\sqrt{1 - \beta_2^t}}{1 - \beta_1^t}
+            \frac{m_t}{v_t + \epsilon}
+
+    where :math:`g_t` denotes a gradient, and let :math:`m_0 \leftarrow 0`
+    and :math:`v_0 \leftarrow 0`, :math:`v_t` is an
+    exponentially weighted infinity norm of a sequence of
+    gradients :math:`t=0,...,t`.
+
+  references:
+    - |
+      `Kingma and Ba, Adam: A Method for Stochastic Optimization.
+      <https://arxiv.org/abs/1412.6980>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 2e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of inf-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`).
+  
+AMSGRAD:
+  snake_name: amsgrad
+  doc: |
+    AMSGRAD optimizer.
+
+    .. math::
+        m_t &\leftarrow \beta_1 m_{t-1} + (1 - \beta_1) g_t\\
+        v_t &\leftarrow \beta_2 v_{t-1} + (1 - \beta_2) g_t^2\\
+        \hat{v_t} = \max(\hat{v_{t-1}}, v_t)\\
+        w_{t+1} &\leftarrow w_t - \alpha
+            \frac{m_t}{\sqrt{\hat{v_t}} + \epsilon}
+
+    where :math:`g_t` denotes a gradient, and let :math:`m_0 \leftarrow 0`
+    and :math:`v_0 \leftarrow 0`.
+
+  references:
+    - |
+      `Reddi et al. On the convergence of ADAM and beyond.
+      <https://openreview.net/pdf?id=ryQu7f-RZ>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 1e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of second-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`). Note this does not appear in the paper.
+    bias_correction:
+      type: bool
+      default: False
+      doc: Apply bias correction to moving averages defined in ADAM. Note this does not appear in the paper.
+
+AMSBound:
+  snake_name: amsbound
+  doc: |
+    AMSBound optimizer applies dynamic bounds on learning rates to AMSGrad.
+
+    .. math::
+        w_{t+1} &\leftarrow w_t - \eta_t*m_t\\
+        \eta_t = clip( \alpha\frac{\sqrt{1 - \beta_2^t}}{(1 - \beta_1^t)(\sqrt{\hat{v_t}} + \epsilon)}, \eta_l(t), \eta_u(t))\\
+        \hat{v_t} = \max(\hat{v_{t-1}}, v_t)\\
+        \eta_l(t) = (1 - (1/((1-\gamma)t+1)))\alpha^*\\
+        \eta_u(t) = (1 + (1/((1-\gamma)t)))\alpha^*
+
+    where :math:`\alpha^*` (``final_lr``) is scaled by a factor defined as the current value of :math:`\alpha` (set by ``set_learning_rate(lr)``) over initial value of :math:`\alpha`, so that learnign rate scheduling is properly applied to both :math:`\alpha` and :math:`\alpha^*`.
+
+  references:
+    - |
+      `L. Luo, Y. Xiong, Y. Liu and X. Sun. Adaptive Gradient Methods with Dynamic Bound of Learning Rate.
+      <https://arxiv.org/abs/1902.09843>`_
+
+  arguments:
+    alpha:
+      type: float
+      default: 1e-3
+      doc: Step size (:math:`\alpha`).
+    beta1:
+      type: float
+      default: 0.9
+      doc: Decay rate of first-order momentum (:math:`\beta_1`).
+    beta2:
+      type: float
+      default: 0.999
+      doc: Decay rate of second-order momentum (:math:`\beta_2`).
+    eps:
+      type: float
+      default: 1e-8
+      doc: Small value for avoiding zero division(:math:`\epsilon`). Note this does not appear in the paper.
+    final_lr:
+      type: float
+      default: 0.1
+      doc: Final (SGD) learning rtae
+    gamma:
+      type: float
+      default: 0.001
+      doc: Convergence speed of the bound functions
+    bias_correction:
+      type: bool
+      default: False
+      doc: Apply bias correction to moving averages defined in ADAM. Note this does not appear in the paper.

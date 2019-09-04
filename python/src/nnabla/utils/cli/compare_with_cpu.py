@@ -55,10 +55,10 @@ def calc_norm_diff(data1, data2):
 
 
 def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_array):
-    loaded_datas = {}
+    loaded_data = {}
     for opt, opt_cpu in zip(config.optimizers.values(), config_cpu.optimizers.values()):
         o = opt.optimizer
-        o_cpu = opt.optimizer
+        o_cpu = opt_cpu.optimizer
         opts = [o, o_cpu]
 
         result_name = "optimizer '%s' with network '%s'" % (
@@ -74,16 +74,18 @@ def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_arr
 
         # Load dataset
         di = opt.data_iterator
-        if di not in loaded_datas:
-            loaded_datas[di] = di.next()
-        datas = loaded_datas[di]
+        if di not in loaded_data:
+            loaded_data[di] = di.next()
+        data = loaded_data[di]
 
         for v, d in o.dataset_assign.items():
-            let_data_to_variable(v.variable_instance, datas[
-                                 di.variables.index(d)])
+            let_data_to_variable(v.variable_instance, data[
+                                 di.variables.index(d)],
+                                 data_name=d, variable_name=v.name)
         for v, d in o_cpu.dataset_assign.items():
-            let_data_to_variable(v.variable_instance, datas[
-                                 di.variables.index(d)])
+            let_data_to_variable(v.variable_instance, data[
+                                 di.variables.index(d)],
+                                 data_name=d, variable_name=v.name)
 
         # Generate data
         generated = {}
@@ -92,12 +94,14 @@ def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_arr
             dest_context = config.global_config.default_context if not o.forward_sequence or v not in o.forward_sequence[
                 0].inputs else None
             let_data_to_variable(v.variable_instance,
-                                 data=generated[v.name], ctx=dest_context)
+                                 data=generated[v.name], ctx=dest_context,
+                                 variable_name=v.name)
         for v, generator in o_cpu.generator_assign.items():
             dest_context = config.global_config.default_context if not o.forward_sequence or v not in o.forward_sequence[
                 0].inputs else None
             let_data_to_variable(v.variable_instance,
-                                 data=generated[v.name], ctx=dest_context)
+                                 data=generated[v.name], ctx=dest_context,
+                                 variable_name=v.name)
 
         last_max_diff = 1e-5
 
@@ -135,13 +139,14 @@ def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_arr
         # Backward
         o.network.prepare_backward(o.backward_sequence)
         o_cpu.network.prepare_backward(o_cpu.backward_sequence)
-        for func, func_cpu in zip(o.backward_sequence.sequence, o_cpu.backward_sequence.sequence):
-            o.network.backward_function(func)
-            o_cpu.network.backward_function(func_cpu)
+        for seq, seq_cpu in zip(o.backward_sequence.sequence, o_cpu.backward_sequence.sequence):
+            o.network.backward_function(seq)
+            o_cpu.network.backward_function(seq_cpu)
             large_diff = False
-            for v, v_cpu in zip(func.inputs, func_cpu.inputs):
+            for v, v_cpu in zip(seq.func.inputs, seq_cpu.func.inputs):
                 if v.variable_instance.need_grad:
-                    name = 'backward_function (%s, %s)' % (func.name, v.name)
+                    name = 'backward_function (%s, %s)' % (
+                        seq.func.name, v.name)
                     norm_diff, std1, std2, diff_std = calc_norm_diff(
                         v.variable_instance.g, v_cpu.variable_instance.g)
                     logger.log(99, '%s, %f, %f, %f, %f' %
@@ -157,13 +162,13 @@ def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_arr
                         last_max_diff = norm_diff
             if large_diff:
                 logger.log(99, '  x_data:')
-                for v, v_cpu in zip(func.inputs, func_cpu.inputs):
+                for v, v_cpu in zip(seq.func.inputs, seq_cpu.func.inputs):
                     logger.log(99, '    current_context(%s.d)=%s' %
                                (v.name, str(v.variable_instance.d.flatten())))
                     logger.log(99, '    cpu(%s.d)=%s' % (
                         v_cpu.name, str(v_cpu.variable_instance.d.flatten())))
                 logger.log(99, '  y_diff:')
-                for v, v_cpu in zip(func.outputs, func_cpu.outputs):
+                for v, v_cpu in zip(seq.func.outputs, seq_cpu.func.outputs):
                     logger.log(99, '    current_context(%s.g)=%s' %
                                (v.name, str(v.variable_instance.g.flatten())))
                     logger.log(99, '    cpu(%s.g)=%s' % (
@@ -177,8 +182,7 @@ def compare_optimizer(config, parameters, config_cpu, parameters_cpu, result_arr
         # Update
         o.solver.update()
         o_cpu.solver.update()
-        for i, (v, lr) in enumerate(o.parameter_learning_rate_multipliers.items()):
-            v_cpu = o_cpu.parameter_learning_rate_multipliers.items()[i][0]
+        for i, ((v, lr), (v_cpu, lr_cpu)) in enumerate(zip(o.parameter_learning_rate_multipliers.items(), o_cpu.parameter_learning_rate_multipliers.items())):
             if lr > 0:
                 name = 'update (%s, %s)' % (o.solver.name, v.name)
                 norm_diff, std1, std2, diff_std = calc_norm_diff(
@@ -277,3 +281,17 @@ def compare_with_cpu_command(args):
 
     logger.log(99, 'Compare with CPU Completed.')
     progress(None)
+    return True
+
+
+def add_compare_with_cpu_command(subparsers):
+    # Compare with CPU
+    subparser = subparsers.add_parser(
+        'compare_with_cpu', help='Compare performance between two nntxt.')
+    subparser.add_argument(
+        '-c', '--config', help='path to nntxt', required=True)
+    subparser.add_argument(
+        '-c2', '--config2', help='path to cpu nntxt', required=True)
+    subparser.add_argument(
+        '-o', '--outdir', help='output directory', required=True)
+    subparser.set_defaults(func=compare_with_cpu_command)

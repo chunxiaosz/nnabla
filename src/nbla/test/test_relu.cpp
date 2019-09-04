@@ -33,8 +33,7 @@ protected:
   virtual void SetUp() {
     // NNabla::init();
     ctx_.array_class = "CpuArray";
-    ctx_.backend = "cpu";
-    ctx_.compute_backend = "default";
+    ctx_.backend = {"cpu:float"};
     dtype_ = dtypes::FLOAT;
     shape_ = Shape_t{2, 3, 4, 5};
     in_.reset(new Variable(shape_));
@@ -63,6 +62,6 @@ TEST_F(ReLUTest, ForwardBackward) {
   relu->setup(Variables{in_.get()}, Variables{out_.get()});
   ASSERT_EQ(in_->shape(), out_->shape());
   relu->forward(Variables{in_.get()}, Variables{out_.get()});
-  relu->backward(Variables{in_.get()}, Variables{out_.get()}, {false});
+  relu->backward(Variables{in_.get()}, Variables{out_.get()}, {true}, {false});
 }
 }

@@ -15,133 +15,322 @@
 #ifndef __NBLA_COMPUTATION_GRAPH_VARIABLE_HPP__
 #define __NBLA_COMPUTATION_GRAPH_VARIABLE_HPP__
 
+#include <nbla/function.hpp>
 #include <nbla/variable.hpp>
 
+#include <functional>
+#include <memory>
+#include <unordered_map>
+#include <unordered_set>
+
 namespace nbla {
+
+using std::unordered_map;
+using std::unordered_set;
+using std::string;
 
 // Forward declaration
 class CgFunction;
 typedef shared_ptr<CgFunction> CgFunctionPtr;
 
-/**
+/** Callback functions during backward.
+ */
+struct CommunicatorBackwardCallback {
+  virtual void on_finish_function_backward(const CgFunctionPtr &ptr) {}
+  virtual void on_finish_backward() {}
+};
+typedef shared_ptr<CommunicatorBackwardCallback>
+    CommunicatorBackwardCallbackPtr;
+
+typedef std::function<void(const CgFunctionPtr &ptr)> function_hook_type;
+
+/** Callback helper class for function callbacks during forward and backward
+class.
+
+This is used from Python frontend.
+ */
+class FunctionHookWithObject {
+public:
+  typedef std::function<void(void *)> cleanup_callback_type;
+  typedef std::function<void(void *, const CgFunctionPtr &f)> callback_type;
+
+private:
+  void *obj_{nullptr};
+  callback_type callback_;
+  cleanup_callback_type cleanup_callback_;
+
+public:
+  NBLA_API FunctionHookWithObject();
+  NBLA_API FunctionHookWithObject(void *obj, callback_type cb,
+                                  cleanup_callback_type clean_cb);
+  NBLA_API ~FunctionHookWithObject();
+  NBLA_API void operator()(const CgFunctionPtr &f);
+};
+
+/** Computation graph variable.
+
+A Variable object is held in this object as a data container. In addition,
+a CGVariable object keeps information about the computation
+graph it belongs to. The information if such as the pointer to the parent
+function which creates this variable and some performance optimization clues.
 */
 class CgVariable {
-  VariablePtr var_;
-  CgFunctionPtr parent_{nullptr};
-  int rank_{0};
-  int function_reference_count_{0}; ///< Reference count by child functions.
-  int consume_counter_; ///< Consumption counter for clearing variable buffer in
-                        /// forward or backward computation.
-  bool allow_inplace_data_{true}; ///< Whether the data can be in-placed.
-  bool grad_inplaced_{false};     ///< Gradient is in-placed with any of parent
-                                  /// function's inputs grad.
-  /** Data in-placed with any of parents. Used to decide whether to clear
-      intermediate buffers during backward computation.
-   */
-  bool clear_data_in_backward_{true};
-  /** Grad in-placed with any of parents. Used to decide whether to clear
-      intermediate buffers during backward computation.
-  */
-  bool clear_grad_in_backward_{true};
-  bool persistent_{false}; ///<Persistency flag against clearing.
+  friend class CgFunction;
+  enum NeedGrad { NG_NONE, NG_FALSE, NG_TRUE };
+  struct FunctionReferenceInfo {
+    bool need_setup{false};
+  };
+  NeedGrad need_grad_{NG_NONE}; ///< Whether the variable requires gradients.
+  NeedGrad need_grad_state_{
+      NG_NONE};     ///< Updated during graph construction or forward
+                    /// propagation.
+  VariablePtr var_; /// Variable instance.
+  CgFunctionPtr parent_{nullptr}; ///< Function created this variable.
+  int rank_{0};                   ///< Longest path from root variable.
+  ///< Holds weak function references. <https://stackoverflow.com/a/22110715>
+  unordered_map<CgFunction *,
+                pair<std::weak_ptr<CgFunction>, FunctionReferenceInfo>>
+      function_references_;
+  bool allow_modify_data_{true}; ///< Whether the data can be in-placed.
+  bool persistent_{false};       ///<Persistency flag against clearing.
+  string name_{""};
+
+  void
+  visit_function_recursive(CgFunctionPtr func,
+                           unordered_set<CgFunctionPtr> &fclosed,
+                           std::function<void(CgFunctionPtr)> forward_callback);
+
+  void visit_function_backward(
+      CgFunctionPtr func, std::function<void(CgFunctionPtr)> backward_callback,
+      vector<CommunicatorBackwardCallbackPtr> communicator_callbacks);
 
 public:
   typedef shared_ptr<CgVariable> Ptr;
+
+  /** Create 0-shaped variable with no need_grad flag.
+   */
+  NBLA_API CgVariable();
+
+  /** Create 0-shaped variable with need_grad option.
+
+      @param[in] need_grad Whether this variable requires gradient computation
+                 or not
+   */
   NBLA_API CgVariable(bool need_grad);
+
+  /** Create a variable by shape.
+
+      @param[in] shape Shape passed to Variable object held in the created
+                 instance.
+   */
+  NBLA_API CgVariable(Shape_t shape);
+
+  /** Create a variable by shape with need_grad option.
+
+      @param[in] shape Shape passed to Variable object held in the created
+                 instance.
+      @param[in] need_grad Whether this variable requires gradient computation
+                 or not
+   */
   NBLA_API CgVariable(Shape_t shape, bool need_grad);
+
+  /** Create by a Variable instance.
+
+      @param[in] var Reference of an existing Variable object.
+   */
   NBLA_API CgVariable(VariablePtr var);
+
+  /** Create by a Variable instance.
+
+      @param[in] var Reference of an existing Variable object.
+      @param[in] need_grad Whether this variable requires gradient computation
+                 or not
+   */
+  NBLA_API CgVariable(VariablePtr var, bool need_grad);
+
+  /** Get need grad flag.
+   */
+  inline bool need_grad() const { return need_grad_ == NG_TRUE; }
+
+  /** Check if need grad flag is set.
+   */
+  inline bool need_grad_is_set() const { return need_grad_ != NG_NONE; }
+
+  /** Set need grad flag.
+   */
+  inline void set_need_grad(bool b) { need_grad_ = b ? NG_TRUE : NG_FALSE; }
+
+  /** Unset need grad flag.
+   */
+  inline void unset_need_grad() { need_grad_ = NG_NONE; }
+
+  /** Get need grad state flag.
+   */
+  inline bool need_grad_state() const {
+    return (need_grad_ != NG_NONE) ? (need_grad_ == NG_TRUE)
+                                   : (need_grad_state_ == NG_TRUE);
+  }
+  /** Check if need grad state is set
+   */
+  inline bool need_grad_state_is_set() const {
+    return need_grad_state_ != NG_NONE;
+  }
+
+  /** Set need grad state flag.
+   */
+  inline void set_need_grad_state(bool b) {
+    need_grad_state_ = b ? NG_TRUE : NG_FALSE;
+  }
+
+  /** Unset need grad state flag.
+   */
+  inline void unset_need_grad_state() { need_grad_state_ = NG_NONE; }
+
+  /** Set parent function.
+
+      @param[in] func Function.
+
+      @note Users usually don't use this directly. Used in connect function.
+   */
   inline void set_parent(CgFunctionPtr func) { parent_ = func; }
+
+  /** Get parent function which produces outputs to this variable.
+   */
   inline CgFunctionPtr parent() { return parent_; }
+
+  /** Get variable reference held in this instance.
+   */
   inline VariablePtr variable() { return var_; }
 
-  /**
+  /** Set variable reference.
+   */
+  inline void set_variable(VariablePtr var) { var_ = var; }
+
+  /** @copydoc rank_
    */
   inline int rank() const { return rank_; }
 
-  /**
-   */
-  inline void set_rank(int rank) { rank_ = rank; }
+  /** set rank.
 
-  /**
+      @note Users shouldn't call this directly.
+   */
+  inline void set_rank_(int rank) { rank_ = rank; }
+
+  /** Forward propagation from root inputs to this variable.
+
+      The predecessor functions are executed in order of lower rank to higher
+      rank until reaching this variable.
+
+      @param[in] clear_buffer Clear SyncedArray object of a variable
+                 never be used during the rest of forward propagation. This
+                 option significantly saves the memory consumption. This is not
+                 usually used in training phase because backward computation
+                 requires data computed during forward prop.
+      @param[in] clear_need_grad Clear the unreferenced variables with
+                 need_grad=False during forward propagation.
+                 True is usually used when calling this during training.
+                 This is ignored when clear_buffer=True.
+      @param[in] fclosed Set arbitrary fclosed flags to control forward
+                 computation. This is used for forward_all function.
+
+      @seealso set_persistent() to prevent a specific variable to be cleared
+               during forward propagation.
    */
   NBLA_API void forward(bool clear_buffer = false,
-                        bool clear_no_need_grad = false);
-  /** Backward propagation through predecessors of this variable.
+                        bool clear_no_need_grad = false,
+                        unordered_set<CgFunctionPtr> *fclosed = nullptr,
+                        function_hook_type pre_callback = nullptr,
+                        function_hook_type post_callback = nullptr);
+  /** Performs a backward propagation
+
+      starting from this variable until the root variable(s) is/are reached
+      in the computation graph.
+      The propagation will stop at a variable with need_grad=false.
+      Backward propagation through predecessors of this variable.
 
       @param[in] grad The backward error signal of this variable. if nullptr is
-     set, it gradients are set as 1.
-     @param[in]
-   */
-  NBLA_API void backward(NdArrayPtr grad = nullptr, bool clear_buffer = false);
+                 set, its gradients are set as 1.
+      @param[in] clear_buffer Clears the no longer referenced variables
+                 during backpropagation to save memory.
+      @param     communicator_callbacks The callback functions invoked when 1)
+                 backward computation of each function is finished and
+                 2) all backward computation is finished.
+
+      @seealso set_persistent() to prevent a specific variable to be cleared
+               during forward propagation.
+  */
+  NBLA_API void
+  backward(NdArrayPtr grad = nullptr, bool clear_buffer = false,
+           vector<CommunicatorBackwardCallbackPtr> communicator_callbacks = {},
+           function_hook_type pre_callback = nullptr,
+           function_hook_type post_callback = nullptr);
+
+  /**
+  */
+  NBLA_API vector<CgFunctionPtr> function_references();
 
   /**
    */
   inline int function_reference_count() const {
-    return function_reference_count_;
+    return function_references_.size();
   }
 
   /**
    */
-  inline void increment_function_reference_count() {
-    function_reference_count_++;
-  }
+  void insert_function_reference(CgFunctionPtr func);
 
   /**
    */
-  inline bool allow_inplace_data() const { return allow_inplace_data_; }
+  NBLA_API
+  void remove_function_reference(CgFunction *funcp);
+
+  /** Mark need_setup flag for all function references.
+   */
+  void mark_need_setup();
+
+  /** Check need_setup signal, and unmark it.
+   */
+  bool check_and_unmark_need_setup(CgFunctionPtr func);
+
+  /** @copydoc allow_modify_data_
+   */
+  inline bool allow_modify_data() const { return allow_modify_data_; }
 
   /**
+      @note User shouldn't call this directly.
    */
-  inline void set_allow_inplace_data(bool allow) {
-    allow_inplace_data_ = allow;
-  }
+  inline void set_allow_modify_data(bool allow) { allow_modify_data_ = allow; }
 
-  /**
-   */
-  inline bool grad_inplaced() const { return grad_inplaced_; }
+  /** Set persistent flag.
 
-  /**
-   */
-  inline void set_grad_inplaced(bool inplaced) { grad_inplaced_ = inplaced; }
+      If it's true, the variable data and grad are never cleared during forward
+      or backward propagation with clear options. It is useful for visualization
+      and debugging purposes.
 
-  /**
-   */
-  inline bool clear_data_in_backward() const { return clear_data_in_backward_; }
-
-  /**
-   */
-  inline void set_clear_data_in_backward(bool clear) {
-    clear_data_in_backward_ = clear;
-  }
-  /**
-   */
-  inline bool clear_grad_in_backward() const { return clear_grad_in_backward_; }
-
-  /**
-   */
-  inline void set_clear_grad_in_backward(bool clear) {
-    clear_grad_in_backward_ = clear;
-  }
-
-  /**
-   */
-  inline int consume(bool reset = false) {
-    if (reset)
-      consume_counter_ = 1;
-    else
-      consume_counter_++;
-    return consume_counter_;
-  }
-
-  /**
+      @param[in] p Persistent flag.
    */
   inline void set_persistent(bool p) { persistent_ = p; }
 
-  /**
+  /** Get persistent flag.
    */
   inline bool persistent() const { return persistent_; }
+
+  /** Set variable name
+   */
+  inline void set_name(string name) { name_ = name; }
+
+  /** Get variable name
+   */
+  inline string name() const { return name_; }
+
+  /** Deepcopy method
+   */
+  NBLA_API
+  Ptr create_deep_copy(Context ctx, bool copy_grad = true);
 };
 
+/** shared_ptr typedef of CGVariable
+ */
 typedef CgVariable::Ptr CgVariablePtr;
 }
 #endif

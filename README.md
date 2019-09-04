@@ -1,26 +1,52 @@
-# NNabla - Neural Network Libraries
+# Neural Network Libraries
 
-NNabla is a deep learning framework that is intended to be used for research,
-development and production. We aim it running everywhere like desktop PCs, HPC
+Neural Network Libraries is a deep learning framework that is intended to be used for research,
+development and production. We aim to have it running everywhere: desktop PCs, HPC
 clusters, embedded devices and production servers.
+
+
+* [Neural Network Libraries - CUDA extension](https://github.com/sony/nnabla-ext-cuda): An extension library of Neural Network Libraries that allows users to speed-up the computation on CUDA-capable GPUs.
+* [Neural Network Libraries - Examples](https://github.com/sony/nnabla-examples): Working examples of Neural Network Libraries from basic to state-of-the-art.
+* [Neural Network Libraries - C Runtime](https://github.com/sony/nnabla-c-runtime):  Runtime library for inference Neural Network created by Neural Network Libraries.
+* [Neural Network Console](https://dl.sony.com/): A Windows GUI app for neural network development.
 
 
 ## Installation
 
-Installing NNabla is easy:
+Installing Neural Network Libraries is easy:
 
 ```
 pip install nnabla
 ```
 
-This installs the CPU version of NNabla. GPU-acceleration can be added by installing the CUDA extension with `pip install nnabla-ext-cuda`.
+This installs the CPU version of Neural Network Libraries. GPU-acceleration can be added by installing the CUDA extension with following command.  
+```
+pip install nnabla-ext-cuda101
+```  
+Above command is for version 10.1 CUDA Toolkit.  
 
+for other versions:  
+`pip install nnabla-ext-cuda100` for CUDA version 10.0.  
+`pip install nnabla-ext-cuda90` for CUDA version 9.0.  
+`pip install nnabla-ext-cuda80` for CUDA version 8.0.  
+  
+CUDA ver. 9.1, ver. 9.2 are not supported now.  
+
+
+For more details, see the [installation section](http://nnabla.readthedocs.io/en/latest/python/installation.html) of the documentation.
+
+### Building from Source
+
+See [Build Manuals](doc/build/README.md).
+
+### Running on Docker
+For details on running on Docker, see the [installation section](http://nnabla.readthedocs.io/en/latest/python/installation.html) of the documentation.
 
 ## Features
 
 ### Easy, flexible and expressive
 
-The Python API built on the NNabla C++11 core gives you flexibility and
+The Python API built on the Neural Network Libraries C++11 core gives you flexibility and
 productivity. For example, a two layer neural network with classification loss
 can be defined in the following 5 lines of codes (hyper parameters are enclosed
 by `<>`).
@@ -61,8 +87,8 @@ for n in range(<num_training_iterations>):
 ```
 
 The dynamic computation graph enables flexible runtime network construction.
-NNabla can use both paradigms of static and dynamic graphs, both using the same
-API.
+Neural Network Libraries can use both paradigms of static and dynamic graphs,
+both using the same API.
 
 ```python
 x.d = <set data>
@@ -82,6 +108,21 @@ with nn.auto_forward():
 loss.backward()
 ```
 
+### Command line utility
+
+Neural Network Libraries provides a command line utility `nnabla_cli` for easier use of NNL.
+
+`nnabla_cli` provides following functionality.
+
+- Training, Evaluation or Inference with NNP file.
+- Dataset and Parameter manipulation.
+- File format converter
+  - From ONNX to NNP and NNP to ONNX.
+  - From ONNX or NNP to NNB or C source code.
+
+For more details see [Documentation](doc/python/command_line_interface.rst)
+
+
 ### Portable and multi-platform
 
 * Python API can be used on Linux and Windows
@@ -91,30 +132,37 @@ loss.backward()
 
 * Easy to add new modules like neural network operators and optimizers
 * The library allows developers to add specialized implementations (e.g., for
-  FPGA, ...). For example, we provides CUDA backend as an extension, which gives
+  FPGA, ...). For example, we provide CUDA backend as an extension, which gives
   speed-up by GPU accelerated computation.
 
 ### Efficient
 
 * High speed on a single CUDA GPU
 * Memory optimization engine
-* Multiple GPU support (Available soon)
+* Multiple GPU support
 
 
 ## Documentation
 
 <https://nnabla.readthedocs.org>
 
-### Setup
-
-<https://nnabla.readthedocs.io/en/latest/python/installation.html>
-
-
 ### Getting started
 
-* A number of Jupyter notebook tutorials can be found in the `tutorial` folder.
+* A number of Jupyter notebook tutorials can be found in the [tutorial](https://github.com/sony/nnabla/tree/master/tutorial) folder.
   We recommend starting from `by_examples.ipynb` for a first
-  working example in NNabla and `python_api.ipynb` for an introduction into the
-  NNabla API.
+  working example in Neural Network Libraries and `python_api.ipynb` for an introduction into the
+  Neural Network Libraries API.
 
-* We also provide some more sophisticated examples in `examples`.
+* We also provide some more sophisticated examples at [`nnabla-examples`](https://github.com/sony/nnabla-examples) repository.
+
+* C++ API examples are available in [`examples/cpp`](https://github.com/sony/nnabla/tree/master/examples/cpp).
+
+
+## Contribution guide
+
+The technology is rapidly progressing, and researchers and developers often want to add their custom features to a deep learning framework.
+NNabla is really nice in this point. The architecture of Neural Network Libraries is clean and quite simple.
+Also, you can add new features very easy by the help of our code template generating system.
+See the following link for details.
+
+* [Contribution guide](CONTRIBUTING.md)

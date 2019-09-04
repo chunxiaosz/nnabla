@@ -14,9 +14,7 @@
 
 import pytest
 import numpy as np
-import nnabla as nn
 import nnabla.functions as F
-import nnabla.initializer as I
 
 
 from nbla_test_utils import (
@@ -82,7 +80,7 @@ atol_list = {
     'div2': (1e-4, 1e-1),
     'pow2': (1e-4, 1e-1),
     'maximum2': (1e-6, 3e-3),
-    'minimum2': (1e-6, 3e-3),
+    'minimum2': (1e-6, 4e-3),
 }
 
 

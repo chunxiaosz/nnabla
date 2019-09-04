@@ -39,7 +39,7 @@ class NBLA_API SyncedArray {
     string array_class;
     dtypes dtype;
   };
-  ArrayDesc head_;   ///< Head desc for transfering content.
+  ArrayDesc head_;   ///< Head desc for transferring content.
   bool zeroing_;     ///< Flag for lazy evaluation of zero() function.
   bool filling_;     ///< Flag for lazy evaluation of fill() function.
   float fill_value_; ///< Filling value used in lazy eval of fill() function.
@@ -56,8 +56,19 @@ public:
 
   This will return an array object with specified dtype and device with implicit
   synchronization over different dtypes/devices.
+
+  @param[in] write_only When true, just returns an Array instance requested
+  without synchronization.
   */
-  Array *cast(dtypes dtype, const Context &ctx);
+  Array *cast(dtypes dtype, const Context &ctx, bool write_only = false);
+
+  /** Cast and get array as a shared_ptr
+
+      @sa cast
+
+   */
+  shared_ptr<Array> cast_sp(dtypes dtype, const Context &ctx,
+                            bool write_only = false);
 
   /** Get array with dtype context.
 
@@ -70,6 +81,19 @@ public:
   */
   const Array *get(dtypes dtype, const Context &ctx);
 
+  /** Get array as a shared pointer.
+   */
+  shared_ptr<const Array> get_sp(dtypes dtype, const Context &ctx);
+
+  /** Get array's ptr.
+
+      @param[in] dtype Enum of data type.
+      @param[in] ctx Descriptor of array backend.
+      @param[in] write_only No synchronization happens.
+   */
+  const void *data_ptr(dtypes dtype, const Context &ctx,
+                       bool write_only = false);
+
   /** Get dtype
   */
   inline dtypes dtype() const {
@@ -77,6 +101,11 @@ public:
                "Array is not initialized.");
     return head_.dtype;
   };
+
+  /** Get the array class of the head.
+   *
+   */
+  inline std::string head_array_class() { return head_.array_class; }
 
   /** Size. */
   inline Size_t size() const { return size_; }
@@ -99,10 +128,20 @@ public:
 
   void clear();
 
-private:
-  ArrayDesc sync(dtypes dtype, const Context &ctx);
+  /** Get whether or not it fills array values obtained in cast/get call later.
 
-  void reset_head();
+      This is provided to determine gradient accumulation flags in our
+     computation graph engine.
+   */
+  bool zeroing() const;
+
+private:
+  ArrayDesc sync(dtypes dtype, const Context &ctx, bool write_only = false);
+
+  void clear_all_array();
+
+  // Clearing zero and fill flags for lazy evaluation.
+  void clear_flags();
 
   DISABLE_COPY_AND_ASSIGN(SyncedArray);
 };

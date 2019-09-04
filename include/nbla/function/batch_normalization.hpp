@@ -51,8 +51,8 @@ Inputs:
 
 Outputs (1 or 3):
 - N-D array.
-- (Optional) N-D array of running mean.
-- (Optional) N-D array of running variance.
+- (Optional) N-D array of batch mean.
+- (Optional) N-D array of batch variance.
 
 @tparam T Data type for computation.
 
@@ -123,6 +123,10 @@ protected:
                                             const Variables &outputs,
                                             const vector<bool> &propagate_down,
                                             const vector<bool> &accum);
+  NBLA_API virtual void backward_impl_global(const Variables &inputs,
+                                             const Variables &outputs,
+                                             const vector<bool> &propagate_down,
+                                             const vector<bool> &accum);
 };
 }
 #endif

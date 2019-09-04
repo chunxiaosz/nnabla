@@ -30,7 +30,7 @@ class Network:
             func.function_instance.setup(
                 func.variable_inputs, func.variable_outputs)
         except:
-            logger.critical('An error occured while setup of function {} (nn.{}) in network {}'.format(
+            logger.critical('An error occurred while setup of function {} (nn.{}) in network {}'.format(
                 func.name, func.function_instance.name, self.name))
             logger.critical('Input variables:')
             for v in func.inputs:
@@ -70,23 +70,31 @@ class Network:
             except:
                 index = forward_sequence.index(func)
                 print_network_traceback(
-                    forward_sequence[min(0, index - 4):index + 1])
+                    forward_sequence[max(0, index - 4):index + 1])
                 raise
 
     def forward_function(self, func):
         try:
+            # Uncomment when debugging expand_recurrent
+            # print(func.name)
+            # print(func.function_instance)
+            # for n, inp in enumerate(func.variable_inputs):
+            #     print('   IN:', n, inp.shape, inp.d.flatten()[0])
             func.function_instance.forward(
                 func.variable_inputs, func.variable_outputs)
+            # Uncomment when debugging expand_recurrent
+            # for n, out in enumerate(func.variable_outputs):
+            #     print('  OUT:', n, out.shape, out.d.flatten()[0])
         except:
-            logger.critical('An error occured while executing forward of function {} (nn.{}) in network {}'.format(
+            logger.critical('An error occurred while executing forward of function {} (nn.{}) in network {}'.format(
                 func.name, func.function_instance.name, self.name))
             raise
-        # logger.debug('Forward: {} {}'.format(func.name, func.function_instance.name))
 
     def get_backward_sequence(self, loss_variables, parameter_variables_and_locallr):
         class BackwardSequence:
             loss_variables = []
             variables = []
+            grad_variables = []
             unused_variables = []
             parameters = []
             sequence = []
@@ -104,10 +112,10 @@ class Network:
         for p, local_lr in parameter_variables_and_locallr.items():
             if local_lr > 0.0:
                 self.__backward_recursive(
-                    backward_sequence.sequence, loss_variables, variable=p)
+                    backward_sequence, loss_variables, variable=p)
 
-        for func in backward_sequence.sequence:
-            backward_sequence.variables.extend(func.variable_outputs)
+        for seq in backward_sequence.sequence:
+            backward_sequence.variables.extend(seq.func.variable_outputs)
         for v in self.variables.values():
             vi = v.variable_instance
             if vi not in backward_sequence.variables and vi not in backward_sequence.parameters:
@@ -118,7 +126,7 @@ class Network:
         # logger.debug('bwcall: {}'.format(function.name if function else ''))
         if not function and variable not in self.variable_outputs:
             # terminal variable
-            return variable in self.loss_variables
+            return variable in loss_variables
         diff_exists = False
         for func in [function] if function else self.variable_outputs[variable]:
             if func.backward_complete:
@@ -136,7 +144,18 @@ class Network:
                     diff_exists = diff_exists or (v in func.outputs)
             if diff_exists:
                 if backward_sequence is not None:
-                    backward_sequence.append(func)
+                    class BackwardSequenceItem:
+                        func = None
+                        accum_grad = []
+                    seq = BackwardSequenceItem()
+                    seq.func = func
+                    for i, v in enumerate(func.variable_inputs):
+                        accum = (
+                            v in backward_sequence.grad_variables or v in backward_sequence.parameters) and not func.function_instance.inplace_grad(i)
+                        seq.accum_grad.append(accum)
+                        if not v in backward_sequence.grad_variables:
+                            backward_sequence.grad_variables.append(v)
+                    backward_sequence.sequence.append(seq)
         return diff_exists
 
     def prepare_backward(self, backward_sequence, parameter_zero_grad=True):
@@ -148,36 +167,35 @@ class Network:
                 p.grad.zero()
         for v in backward_sequence.variables:
             v.need_grad = True
-            v.grad.zero()
         for l in backward_sequence.loss_variables:
-            l.grad.fill(1.0 / l.shape[0])
+            l.grad.fill(1.0 / l.size)
 
     def backward(self, backward_sequence, parameter_zero_grad=True):
         self.prepare_backward(backward_sequence, parameter_zero_grad)
-        for func in backward_sequence.sequence:
+        for seq in backward_sequence.sequence:
             try:
-                self.backward_function(func)
+                self.backward_function(seq)
             except:
-                index = backward_sequence.index(func)
+                index = backward_sequence.sequence.index(seq)
                 print_network_traceback(
-                    backward_sequence[min(0, index - 4):index + 1])
+                    [seq.func for seq in backward_sequence.sequence[max(0, index - 4):index + 1]])
                 raise
 
-    def backward_function(self, func):
+    def backward_function(self, seq):
         try:
-            func.function_instance.backward(
-                func.variable_inputs, func.variable_outputs)
+            seq.func.function_instance.backward(
+                seq.func.variable_inputs, seq.func.variable_outputs, seq.accum_grad)
         except:
-            logger.critical('An error occured while executing backward of function {} (nn.{}) in network {}'.format(
-                func.name, func.function_instance.name, self.name))
+            logger.critical('An error occurred while executing backward of function {} (nn.{}) in network {}'.format(
+                seq.func.name, seq.func.function_instance.name, self.name))
             raise
         # logger.debug('Backward: {} {}'.format(func.name, func.function_instance.name))
 
     def setup(self, optimize=False):
         if optimize:
-            for func in self.functions.values():
+            for func in list(self.functions.values()):
                 # remove identity layer
-                if func.function_instance.name[0:8] == "Identity":
+                if func.function_instance.name[0:8] == "Identity" and not func.persistent:
                     assert(len(func.inputs) == 1)
                     assert(len(func.outputs) == 1)
                     # if the identity function is not terminal (keep terminal
@@ -210,8 +228,8 @@ class Network:
             try:
                 self.setup_function(func)
             except:
-                print_network_traceback(self.functions.values()[
-                                        min(0, i - 4):i + 1])
+                print_network_traceback(list(self.functions.values())[
+                                        max(0, i - 4):i + 1])
                 raise
 
         # set link structure to each layer

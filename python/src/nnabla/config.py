@@ -13,22 +13,22 @@
 # limitations under the License.
 
 '''
-Search config file and get config infomation from config file.
+Search config file and get config information from config file.
 
 Config file search order is described in following table.
-Each config value is overwrited by the following configs.
+Each config value is overwritten by the following configs.
 
-+-------------+-----------------------------------------------------------------+--------------------+
-| Type        | Windows                                                         | Posix              |
-+=============+=================================================================+====================+
-| Default     | (Same directory with 'config.py')/nnabla.conf                                      |
-+-------------+-----------------------------------------------------------------+--------------------+
-| System wide | c:\\\\ProgramData\\\\NNabla\\\\nnabla.ini                         | /etc/nnabla.conf |
-+-------------+-----------------------------------------------------------------+--------------------+
-| User        | c:\\\\Users\\\\[USERNAME]\\\\AppData\\\\Roaming\\\\NNabla\\\\nnabla.ini | ~/.nnabla        |
-+-------------+-----------------------------------------------------------------+--------------------+
-| Local       | [CURRENT DIRECTORY]/nnabla.conf                                                    |
-+-------------+-----------------------------------------------------------------+--------------------+
++-------------+--------------------+-------------------------------------------------------------------------+
+| Type        | Posix              | Windows                                                                 |
++=============+====================+=========================================================================+
+| System wide | /etc/nnabla.conf   | c:\\\\ProgramData\\\\NNabla\\\\nnabla.ini                                     |
++-------------+--------------------+-------------------------------------------------------------------------+
+| User        | ~/.nnabla          | c:\\\\Users\\\\[USERNAME]\\\\AppData\\\\Roaming\\\\NNabla\\\\nnabla.ini             |
++-------------+--------------------+-------------------------------------------------------------------------+
+| Default     | (Same directory with 'config.py')/nnabla.conf                                                |
++-------------+--------------------+-------------------------------------------------------------------------+
+| Local       | [CURRENT DIRECTORY]/nnabla.conf                                                              |
++-------------+----------------------------------------------------------------------------------------------+
 
 You can get config value as followings.
 
@@ -75,9 +75,14 @@ def _get_nnabla_config():
             0, shellcon.CSIDL_APPDATA, None, 0), 'NNabla', 'nnabla.ini')))
     config_files.append(abspath(join(os.getcwd(), 'nnabla.conf')))
 
+    if "NNABLA_CONFIG_FILE_PATH" in os.environ:
+        conf = os.environ["NNABLA_CONFIG_FILE_PATH"]
+        if os.path.exists(conf):
+            config_files.append(conf)
+
     config = configparser.RawConfigParser()
     for filename in config_files:
-        # print(' Cheking {}'.format(filename))
+        # print(' Checking {}'.format(filename))
         if exists(filename):
             # print(' Read from {}'.format(filename))
             config.read(filename)

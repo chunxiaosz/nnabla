@@ -14,7 +14,6 @@
 
 import pytest
 import numpy as np
-import nnabla as nn
 import nnabla.functions as F
 
 from nbla_test_utils import list_context
@@ -23,7 +22,7 @@ ctxs = list_context('CELU')
 
 
 def ref_celu(x, alpha, axis):
-    elu1 = np.maximum(0.,  x) + alpha * (np.exp(np.minimum(0,  x)) - 1)
+    elu1 = np.maximum(0., x) + alpha * (np.exp(np.minimum(0, x)) - 1)
     elu2 = np.maximum(0., -x) + alpha * (np.exp(np.minimum(0, -x)) - 1)
     return np.concatenate([elu1, elu2], axis=axis)
 
@@ -37,4 +36,17 @@ def test_celu_forward_backward(seed, alpha, axis, ctx, func_name):
     rng = np.random.RandomState(seed)
     inputs = [rng.randn(2, 3, 4).astype(np.float32) * 2]
     function_tester(rng, F.celu, ref_celu, inputs, func_args=[alpha, axis],
-                    ctx=ctx, func_name=func_name, atol_b=2e-3)
+                    ctx=ctx, func_name=func_name, atol_b=4e-3)
+
+
+# @pytest.mark.parametrize("ctx, func_name", ctxs)
+# @pytest.mark.parametrize("alpha", [1.0, 0.5, 0.0])
+# @pytest.mark.parametrize("alpha", [1.0])
+# @pytest.mark.parametrize("axis", [0, 1, 2])
+# @pytest.mark.parametrize("seed", [313])
+# def test_celu_double_backward(seed, alpha, axis, ctx, func_name):
+##     from nbla_test_utils import backward_function_tester
+##     rng = np.random.RandomState(seed)
+##     inputs = [rng.randn(2, 3, 4).astype(np.float32) * 2]
+# backward_function_tester(rng, F.celu, None, inputs, func_args=[alpha, axis],
+# ctx=ctx, func_name=func_name, atol_b=1e-3, atol_accum=1e-3)

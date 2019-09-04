@@ -12,15 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// -*- coding:utf-8 -*-
-/*
- * Copyright (C) 2016 Sony Corporation
- * This is UNPUBLISHED PROPRIETARY SOURCE CODE of Sony Corporation;
- * the contents of this file is not to be disclosed to third parties, copied
- * or duplicated in any form, in whole or in part, without the prior written
- * permission of Sony Corporation.
- */
-
 /** CELU
  */
 #ifndef __NBLA_FUNCTION_CELU_HPP__
@@ -35,7 +26,7 @@ namespace nbla {
 NBLA_REGISTER_FUNCTION_HEADER(CELU, double, int);
 
 /** Concatenated Exponential Linear Unit (CELU) concatenates ELU outputs of
-positive and negativa inputs together at specified axis.
+positive and negative inputs together at specified axis.
 
 Inputs:
 - N-D array.

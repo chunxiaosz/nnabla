@@ -29,6 +29,7 @@ namespace nbla {
 using std::string;
 using std::vector;
 using std::shared_ptr;
+using std::make_shared;
 using std::tuple;
 using std::get;
 
@@ -122,7 +123,7 @@ public:
   @sa setup() arguments.
   */
   void backward(const Variables &inputs, const Variables &outputs,
-                const vector<bool> &acccum);
+                const vector<bool> &propagate_down, const vector<bool> &acccum);
 
   /** Get Context used in this function.
   */
@@ -164,20 +165,20 @@ public:
   */
   virtual vector<string> allowed_array_classes() = 0;
 
-  /** Depenency flag for checking if in-grad depends on out-data.
+  /** Dependency flag for checking if in-grad depends on out-data.
 
       If i=1 and o=0, checking checking if i-th input' gradient
       computation requires o-th output's data or not.
 
-      By default, always returns true. If override this in a sub-class, the
-     computation graph engine will optimize memory usage.
-
       @param[in] i Input variable index.
       @param[in] o Output variable index.
 
+      @note If any of inputs requires an output variable data when computing
+      its gradient, this function must be overridden to return appropriate
+      boolean value. Otherwise, backward computation will be incorrect.
    */
   virtual bool grad_depends_output_data(int i, int o) const { return false; }
-  /** Depenency flag for checking if in-grad depends on in-data.
+  /** Dependency flag for checking if in-grad depends on in-data.
 
       If i=1 and j=0, checking checking if i-th input' gradient
      computation requires j-th input's data or not.
@@ -199,7 +200,7 @@ public:
 
       @param[in] i Input variable index.
       @retval Returns 0 by default.
-      @note If a subclass uses in-place computation, the function must overwride
+      @note If a subclass uses in-place computation, the function must override
      this function.
    */
   virtual int inplace_data(int i) const { return NOT_INPLACE; }
@@ -225,7 +226,7 @@ public:
 
       @param[in] i Input variable index.
       @retval Returns 0 by default.
-      @note If a subclass uses in-place computation, the function must overwride
+      @note If a subclass uses in-place computation, the function must override
      this function.
    */
   virtual int inplace_grad(int i) const { return NOT_INPLACE; }
@@ -242,6 +243,16 @@ public:
         error_code::not_implemented,
         "This must be implemented for in-place support of this function.");
   }
+
+  /** A flag for preventing that the graph engine clears buffers of
+      input variables even if clear_buffer is true and condition mets.
+   */
+  virtual bool prohibit_clear_input_buffers() const { return false; }
+
+  /** A flag for preventing that the graph engine sets input gradient buffer as
+   * 0 even when accum is true.
+   */
+  virtual bool prohibit_zero_input_grad() const { return false; }
 
   /** Copy another instance of Function with the same context.
   */
@@ -287,7 +298,7 @@ protected:
     graph) and compute Jacobian multiplication of this function with grad.
   - Store backprop error into grad in inputs.
 
-  @param propagate_down Boorean array that indicates whether backprop is needed
+  @param propagate_down Boolean array that indicates whether backprop is needed
   for an input corresponding to its index.
 
   @sa setup() arguments.
@@ -308,6 +319,7 @@ protected:
   tuple<typename std::remove_reference<Args>::type...> args_;
 
 public:
+  typedef BaseFunction<Args...> base_function_type;
   BaseFunction(const Context &ctx, Args... args)
       : Function(ctx), args_(args...) {}
 

@@ -68,7 +68,7 @@ public:
   inline BaseUnaryOp() {}
   template <typename T> inline T operator()(const T x) {
     NBLA_ERROR(error_code::not_implemented,
-               "Forward opeartion is not implemented.");
+               "Forward operation is not implemented.");
   }
   template <typename T> inline T g(const T dy, const T x, const T y) {
     NBLA_ERROR(error_code::not_implemented,
@@ -78,6 +78,9 @@ public:
 
 template <typename T, typename UnaryOp>
 void transform_unary(int size, const T *x, T *y, UnaryOp op) {
+#ifdef _OPENMP
+#pragma omp parallel for schedule(static)
+#endif
   for (int idx = 0; idx < size; ++idx) {
     y[idx] = op(x[idx]);
   }
@@ -87,7 +90,7 @@ template <typename T, typename UnaryOp, bool accum>
 void transform_unary_grad(int size, const T *dy, const T *x, const T *y, T *g,
                           UnaryOp op) {
   for (int idx = 0; idx < size; ++idx) {
-    g[idx] = (accum ? g[idx] : 0) + op.g(dy[idx], x[idx], y[idx]);
+    g[idx] = (accum ? g[idx] : (T)0) + op.g(dy[idx], x[idx], y[idx]);
   }
 }
 
@@ -95,7 +98,7 @@ template <typename T, typename UnaryOp, typename... Args>
 void TransformUnary<T, UnaryOp, Args...>::forward_impl(
     const Variables &inputs, const Variables &outputs) {
   const T *x = inputs[0]->get_data_pointer<T>(this->ctx_);
-  T *y = outputs[0]->cast_data_and_get_pointer<T>(this->ctx_);
+  T *y = outputs[0]->cast_data_and_get_pointer<T>(this->ctx_, true);
   transform_unary(inputs[0]->size(), x, y, unary_op_);
 }
 
@@ -110,7 +113,7 @@ void TransformUnary<T, UnaryOp, Args...>::backward_impl(
   const T *x = inputs[0]->get_data_pointer<T>(this->ctx_);
   const T *y = outputs[0]->get_data_pointer<T>(this->ctx_);
   Size_t size = inputs[0]->size();
-  T *g = inputs[0]->cast_grad_and_get_pointer<T>(this->ctx_);
+  T *g = inputs[0]->cast_grad_and_get_pointer<T>(this->ctx_, !accum[0]);
   if (accum[0])
     transform_unary_grad<T, UnaryOp, true>(size, dy, x, y, g, unary_op_);
   else

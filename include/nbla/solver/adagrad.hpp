@@ -14,7 +14,7 @@
 
 #ifndef __NBLA_SOLVER_ADAGRAD_HPP__
 #define __NBLA_SOLVER_ADAGRAD_HPP__
-#include <nbla/solver/base_solver.hpp>
+#include <nbla/solver.hpp>
 #include <nbla/solver_registry.hpp>
 
 namespace nbla {
@@ -24,9 +24,10 @@ NBLA_REGISTER_SOLVER_HEADER(Adagrad, float /*lr*/, float /*eps*/);
 /** Adagrad. This is defined as
 
 \f[
-g_t \leftarrow \Delta w_t
-G_t \leftarrow G_{t-1} + g_t^2
-w_{t+1} \leftarrow w_t - \frac{\eta}{\sqrt{G_t} + \epsilon} g_t
+g_t \leftarrow \Delta w_t\\
+G_t \leftarrow G_{t-1} + g_t^2\\
+w_{t+1} \leftarrow w_t - \frac{\eta}{\sqrt{G_t} + \epsilon} g_t\\
+\f]
 
 @param lr \f$\eta\f$ Learning rate.
 @param eps \f$\epsilon\f$ Tiny factor for avoiding 0-division.
@@ -35,12 +36,11 @@ w_{t+1} \leftarrow w_t - \frac{\eta}{\sqrt{G_t} + \epsilon} g_t
 John Duchi, Elad Hazan and Yoram Singer (2011)
 Adaptive Subgradient Methods for Online Learning and Stochastic Optimization
 http://www.jmlr.org/papers/volume12/duchi11a/duchi11a.pdf
-\f]
 
 
 \ingroup SolverImplGrp
 */
-template <typename T> class NBLA_API Adagrad : public BaseSolver<T> {
+template <typename T> class NBLA_API Adagrad : public Solver {
 public:
   Adagrad(const Context &ctx, float lr, float eps);
   virtual ~Adagrad();
@@ -58,6 +58,11 @@ protected:
   virtual void set_state_impl(const string &key, VariablePtr param);
   virtual void remove_state_impl(const string &key);
   virtual void update_impl(const string &key, VariablePtr param);
+  NBLA_DECL_WEIGHT_DECAY();
+  NBLA_DECL_CHECK_INF_GRAD();
+  NBLA_DECL_CHECK_NAN_GRAD();
+  NBLA_DECL_CHECK_INF_OR_NAN_GRAD();
+  NBLA_DECL_SCALE_GRAD();
 };
 }
 #endif

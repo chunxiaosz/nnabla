@@ -30,6 +30,27 @@ namespace nbla {
 
 using std::ceil;
 
+using std::vector;
+
+/**
+   Get output shape of pooling from input configuration.
+ */
+struct PoolingConfiguration {
+  vector<int> inshape;
+  vector<int> kernel;
+  vector<int> stride;
+  vector<int> pad;
+  bool ignore_border;
+  bool channel_last;
+  vector<int> outshape;
+  int base_axis;
+  NBLA_API PoolingConfiguration(const vector<int> &inshape,
+                                const vector<int> &kernel,
+                                const vector<int> &stride,
+                                const vector<int> &pad, bool ignore_border,
+                                bool channel_last);
+};
+
 /** Base class for pooling functions AveragePooling, SumPooling and MaxPooling.
 
 Inputs:
@@ -41,7 +62,7 @@ Outputs:
 @note Only 2D pooling supported so far.
 @tparam T Data type for computation.
 @param kernel Shapes of kernel.
-@param stride Subsamling factors of pooling.
+@param stride Subsampling factors of pooling.
 @param ignore_border If false, a kernel overlapping border is also considered
                      for output unlike convolution.
 @param pad Border padding values of dimensions. Padding will be added both sides
@@ -55,8 +76,11 @@ protected:
   vector<int> stride_;
   bool ignore_border_;
   vector<int> pad_;
+  bool channel_last_;
 
 public:
+  typedef T data_type;
+  typedef BasePooling<T, Args...> base_pooling_type;
   // First arguments are
   // const vector<int> &kernel,
   // const vector<int> &stride, bool ignore_border, const vector<int> &pad
@@ -67,10 +91,11 @@ public:
     stride_ = std::get<1>(t);
     ignore_border_ = std::get<2>(t);
     pad_ = std::get<3>(t);
+    channel_last_ = std::get<4>(t);
   }
 
   virtual ~BasePooling() {}
-  virtual shared_ptr<Function> copy() const { return NULL; }
+  virtual shared_ptr<Function> copy() const { return nullptr; }
   virtual vector<dtypes> in_types() { return vector<dtypes>{get_dtype<T>()}; }
   virtual vector<dtypes> out_types() { return vector<dtypes>{get_dtype<T>()}; }
   virtual int min_inputs() { return 1; }
@@ -85,47 +110,11 @@ protected:
 
     // compute out shape
     const Shape_t inshape = inputs[0]->shape();
-    const int s = inshape.size() - kernel_.size();
-
-    if (stride_.size() == 0) {
-      std::copy(stride_.begin(), stride_.end(), kernel_.begin());
-    } else {
-      NBLA_CHECK(kernel_.size() == stride_.size(), error_code::value,
-                 "Length of kernel and stride must be same. "
-                 "kernel: %d != stride: %d.",
-                 kernel_.size(), stride_.size());
-      NBLA_CHECK(kernel_.size() <= inshape.size(), error_code::value,
-                 "Length of kernel must be less than length of inshape. "
-                 "kernel: %d != inshape: %d.",
-                 kernel_.size(), inshape.size());
-    }
-    NBLA_CHECK(kernel_.size() == 2, error_code::not_implemented,
-               "2D Pooling is only supported so far.");
-
-    vector<int> shape(kernel_.size());
-    for (int i = 0; i < kernel_.size(); i++)
-      shape[i] = inshape[i + s];
-    NBLA_CHECK(kernel_.size() == pad_.size(), error_code::value,
-               "Size of kernel and pad must be same. "
-               "kernel: %d != pad: %d).",
-               kernel_.size(), pad_.size());
-    for (int i = 0; i < shape.size(); i++) {
-      shape[i] += 2 * pad_[i];
-      if (ignore_border_) {
-        shape[i] = int((shape[i] - kernel_[i]) / stride_[i]) + 1;
-      } else {
-        shape[i] = ceil(shape[i] * 1.0 / stride_[i]);
-      }
-    }
-
-    Shape_t outshape(inshape.size());
-    for (int i = 0; i < inshape.size(); i++) {
-      if (i < s)
-        outshape[i] = inshape[i];
-      else
-        outshape[i] = shape[i - s];
-    }
-
+    PoolingConfiguration cfg(vector<int>(inshape.begin(), inshape.end()),
+                             kernel_, stride_, pad_, ignore_border_,
+                             channel_last_);
+    stride_ = cfg.stride;
+    Shape_t outshape(cfg.outshape.cbegin(), cfg.outshape.cend()); // cast
     outputs[0]->reshape(outshape, true);
   }
 };

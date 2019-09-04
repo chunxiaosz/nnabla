@@ -16,21 +16,36 @@
 Contents loader functions for DataSource.
 
 '''
-from scipy.misc import imresize, imread
+
+from __future__ import absolute_import
+
+from six.moves import map
 from shutil import rmtree
+from six import BytesIO
 from six import StringIO
 from six.moves.urllib.parse import urljoin
-from tqdm import tqdm
 import contextlib
 import csv
+
+# TODO temporary work around to suppress FutureWarning message.
+import warnings
+warnings.simplefilter('ignore', category=FutureWarning)
 import h5py
+
 import numpy
 import os
 import six.moves.urllib.request as request
 import six
 import tempfile
+from shutil import rmtree
 
+from nnabla.utils import image_utils
+from nnabla.utils.image_utils import imresize, imread
 from nnabla.logger import logger
+
+
+# Expose for backward compatibility
+from .download import download, get_data_home
 
 pypng_available = False
 try:
@@ -50,7 +65,7 @@ except ImportError:
 class FileReader:
     '''FileReader
 
-    Read dataset from sevaral data sources.
+    Read dataset from several data sources.
     Supported data sources are,
 
     * Local file (file or directory name)
@@ -97,8 +112,25 @@ class FileReader:
         else:
             self._file_type = 'file'
 
+    def read_s3_object(self, key):
+        retry = 1
+        result = ''
+        while True:
+            if retry > 10:
+                logger.log(99, 'read_s3_object() retry count over give up.')
+                raise
+            try:
+                result = self._s3_bucket.Object(key).get()['Body'].read()
+                break
+            except:
+                logger.log(
+                    99, 'read_s3_object() fails retrying count {}/10.'.format(retry))
+                retry += 1
+
+        return result
+
     @contextlib.contextmanager
-    def open(self, filename=None):
+    def open(self, filename=None, textmode=False):
         if filename is None:
             filename = self._base_uri
         else:
@@ -117,11 +149,17 @@ class FileReader:
             bucketname = us.pop(0)
             key = '/'.join(us)
             logger.info('Opening {}'.format(key))
-            f = StringIO(self._s3_bucket.Object(key).get()['Body'].read())
+            if textmode:
+                f = StringIO(self.read_s3_object(key).decode('utf-8'))
+            else:
+                f = BytesIO(self.read_s3_object(key))
         elif self._file_type == 'http':
             f = request.urlopen(filename)
         else:
-            f = open(filename, 'rb')
+            if textmode:
+                f = open(filename, 'rt')
+            else:
+                f = open(filename, 'rb')
         yield f
         f.close()
 
@@ -134,7 +172,7 @@ class FileReader:
             key = '/'.join(filename.split('/')[3:])
             fn = '{}/{}'.format(tmpdir, os.path.basename(filename))
             with open(fn, 'wb') as f:
-                f.write(self._s3_bucket.Object(key).get()['Body'].read())
+                f.write(self.read_s3_object(key))
             with h5py.File(fn, 'r') as h5:
                 yield h5
             rmtree(tmpdir, ignore_errors=True)
@@ -154,7 +192,7 @@ class FileReader:
             return sorted(list)
         elif self._file_type == 'http':
             return None
-        return sorted(os.listdir(self._base_uri))
+        return [f for f in sorted(os.listdir(self._base_uri)) if os.path.splitext(f)[1].lower() == ".h5"]
 
 
 def load_image_imread(file, shape=None, max_range=1.0):
@@ -244,7 +282,7 @@ def load_image_pypng(file, shape=None, max_range=1.0):
         return img.transpose(2, 0, 1) * max_range
     else:
         out_n_color, out_height, out_width = shape
-        return imresize(img, (out_height, out_width, out_n_color)).transpose((2, 0, 1)) * max_range / 255.0
+        return imresize(img, (out_height, out_width)).transpose((2, 0, 1)) * max_range / 255.0
 
 
 def load_image_cv2(file, shape=None, max_range=1.0):
@@ -320,8 +358,12 @@ def load_csv(file, shape=None, normalize=False):
     :return: numpy array
     """
     value_list = []
-    for row in csv.reader(file):
-        value_list.append(map(float, row))
+    if six.PY2:
+        for row in csv.reader(file):
+            value_list.append(list(map(float, row)))
+    elif six.PY34:
+        for row in csv.reader([l.decode('utf-8') for l in file.readlines()]):
+            value_list.append(list(map(float, row)))
     if shape is None:
         return numpy.array(value_list)
     else:
@@ -342,6 +384,7 @@ _load_functions = {
     '.png': load_image,
     '.gif': load_image,
     '.tif': load_image,
+    '.tiff': load_image,
     '.csv': load_csv,
     '.npy': load_npy}
 
@@ -351,9 +394,14 @@ def register_load_function(ext, function):
 
 
 def load(ext):
+    import nnabla.utils.callback as callback
+    func = callback.get_load_image_func(ext)
+    if func is not None:
+        return func
     if ext in _load_functions:
         return _load_functions[ext]
-    return None
+    raise ValueError(
+        'File format with extension "{}" is not supported.'.format(ext))
 
 
 def _download_hook(t):
@@ -365,42 +413,3 @@ def _download_hook(t):
         t.update((b - last_b[0]) * bsize)
         last_b[0] = b
     return inner
-
-
-def get_data_home():
-    import os
-    d = os.path.expanduser("~/nnabla_data")
-    if not os.path.isdir(d):
-        os.makedirs(d)
-    return d
-
-
-def download(url):
-    filename = url.split('/')[-1]
-    cache = os.path.join(get_data_home(), filename)
-    if os.path.exists(cache):
-        logger.info("> {} in cache.".format(cache))
-        logger.info("> If you have any issue when using this file, ")
-        logger.info("> manually remove the file and try download again.")
-    else:
-        r = request.urlopen(url)
-        try:
-            if six.PY2:
-                content_length = int(r.info().dict['content-length'])
-            elif six.PY3:
-                content_length = int(r.info()['Content-Length'])
-        except:
-            content_length = 0
-        unit = 1000000
-        content = b''
-        with tqdm(total=content_length, desc=filename) as t:
-            while True:
-                data = r.read(unit)
-                l = len(data)
-                t.update(l)
-                if l == 0:
-                    break
-                content += data
-        with open(cache, 'wb') as f:
-            f.write(content)
-    return open(cache, 'rb')
